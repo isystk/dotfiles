@@ -1,7 +1,7 @@
 # Global Codex Settings
 
 このファイルは全プロジェクトに適用されるグローバル設定です。
-言語固有のルールは `~/.codex/rules/` ディレクトリに配置しています。
+言語固有のルールは各リポジトリのルールディレクトリに配置します。
 
 ## Language
 
@@ -100,16 +100,6 @@ memory に書く前に確認する：
 - 1タスクで広範囲なリネーム・構成変更を行わない
 - UI変更は、依頼された範囲以外の見た目を変えない
 - CSS調整は局所的に行う
-
-## Rules Directory
-
-言語・フレームワーク固有のルールは以下に配置：
-
-```
-~/.codex/rules/
-├── laravel.md # PHP/Laravel向けルール
-└── react.md   # React向けルール
-```
 
 ## Project-Specific Settings
 

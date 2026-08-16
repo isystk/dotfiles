@@ -161,11 +161,15 @@ symlink "$SCRIPT_DIR/scripts/gemini-cli.py" "$HOME/.local/bin/gemini-cli"
 # chatgpt-cli
 symlink "$SCRIPT_DIR/scripts/chatgpt-cli.py" "$HOME/.local/bin/chatgpt-cli"
 
+# claude-cli
+symlink "$SCRIPT_DIR/scripts/claude-cli.py" "$HOME/.local/bin/claude-cli"
+
 # Git / Vim / Config
 symlink "$SCRIPT_DIR/.gitconfig"    "$HOME/.gitconfig"
 symlink "$SCRIPT_DIR/.vimrc"        "$HOME/.vimrc"
 symlink "$SCRIPT_DIR/.config/gemini-cli" "$HOME/.config/gemini-cli"
 symlink "$SCRIPT_DIR/.config/chatgpt-cli" "$HOME/.config/chatgpt-cli"
+symlink "$SCRIPT_DIR/.config/claude-cli" "$HOME/.config/claude-cli"
 symlink "$SCRIPT_DIR/.config/git"    "$HOME/.config/git"
 symlink "$SCRIPT_DIR/.config/gh"     "$HOME/.config/gh"
 symlink "$SCRIPT_DIR/.config/nvim"   "$HOME/.config/nvim"
@@ -178,12 +182,10 @@ symlink "$SCRIPT_DIR/.claude/hooks" "$HOME/.claude/hooks"
 symlink "$SCRIPT_DIR/.claude/statusline.sh" "$HOME/.claude/statusline.sh"
 symlink "$SCRIPT_DIR/.claude/agents" "$HOME/.claude/agents"
 symlink "$SCRIPT_DIR/.claude/skills" "$HOME/.claude/skills"
-symlink "$SCRIPT_DIR/.claude/rules" "$HOME/.claude/rules"
 
 # Gemini / Antigravity
 symlink "$SCRIPT_DIR/.gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md"
 symlink "$SCRIPT_DIR/.gemini/settings.json" "$HOME/.gemini/settings.json"
-symlink "$SCRIPT_DIR/.gemini/rules" "$HOME/.gemini/rules"
 symlink "$SCRIPT_DIR/.gemini/skills" "$HOME/.gemini/skills"
 symlink "$SCRIPT_DIR/.claude/mcp_config.json" "$HOME/.gemini/antigravity/mcp_config.json"
 
@@ -192,7 +194,6 @@ symlink "$SCRIPT_DIR/.codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
 # Codex の MCP 定義は ~/.codex/config.toml の [mcp_servers] を使う
 symlink "$SCRIPT_DIR/.codex/config.toml" "$HOME/.codex/config.toml"
 symlink "$SCRIPT_DIR/.codex/.codexignore" "$HOME/.codexignore"
-symlink "$SCRIPT_DIR/.codex/rules" "$HOME/.codex/rules"
 symlink "$SCRIPT_DIR/.codex/skills" "$HOME/.codex/skills"
 
 if [ -n "$IS_MAC" ]; then
@@ -241,6 +242,7 @@ esac
 find . -name "*.sh" -exec chmod a+x {} +
 chmod +x "$SCRIPT_DIR/scripts/gemini-cli.py"
 chmod +x "$SCRIPT_DIR/scripts/chatgpt-cli.py"
+chmod +x "$SCRIPT_DIR/scripts/claude-cli.py"
 chmod +x ~/.config/git/hooks/*
 
 echo "Done!"
