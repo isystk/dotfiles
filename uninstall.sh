@@ -24,7 +24,8 @@ fi
 
 # --- 処理開始 ---
 
-source "$HOME/dotfiles/scripts/utils.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/scripts/utils.sh"
 
 # シンボリックリンクを安全に解除する関数
 safe_unlink() {

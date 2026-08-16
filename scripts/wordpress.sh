@@ -39,8 +39,10 @@ wp_api() {
     local method=$1
     local endpoint=$2
     shift 2
+    # Authorization ヘッダーをコマンドライン引数に直接渡すと `ps` 等で
+    # 他ユーザーに認証情報が見えるため、-K (config読み込み) 経由で渡す
     curl -s -X "$method" "$WP_BASE_URL/$endpoint" \
-         -H "Authorization: Basic $WORDPRESS_KEY" \
+         -K <(printf 'header = "Authorization: Basic %s"\n' "$WORDPRESS_KEY") \
          "$@"
 }
 

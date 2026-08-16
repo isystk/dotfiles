@@ -1,13 +1,13 @@
 #!/bin/bash
 
-source "$HOME/dotfiles/scripts/utils.sh"
-
 # 1. 未定義変数やエラーが発生した時点で停止させる
 set -u
 
 # 2. 実行ディレクトリの取得
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
+
+source "$SCRIPT_DIR/scripts/utils.sh"
 
 # ファイルコピー関数 (ターゲットが存在しない場合のみコピー)
 # $1: ソース (コピー元ファイル)
@@ -25,9 +25,9 @@ copy_with_prompt() {
         echo -n "Notice: $target already exists. Overwrite? (y/N): "
         read -r ans
         case "$ans" in
-            [yY][eE][sS]|[yY]) 
-                echo "Removing existing file and copying new one..."
-                rm -rf "$target"
+            [yY][eE][sS]|[yY])
+                echo "Backing up existing file to $target.bak..."
+                cp -R "$target" "$target.bak"
                 ;;
             *)
                 echo "Skipping copy..."
@@ -36,7 +36,7 @@ copy_with_prompt() {
         esac
     fi
 
-    # コピー実行セクション
+    # コピー実行セクション (既存ファイルは cp が上書きするため rm は行わない)
     echo "Copying: $source to $target"
     mkdir -p "$(dirname "$target")"
     cp -R "$source" "$target" # ディレクトリごとコピーできるよう -R を推奨
@@ -95,7 +95,10 @@ setup_mcp() {
     fi
 
     local servers
-    servers=$(python3 -c "import json; print('\n'.join(json.load(open('$mcp_config'))['mcpServers'].keys()))")
+    servers=$(python3 -c "
+import json, sys
+print('\n'.join(json.load(open(sys.argv[1]))['mcpServers'].keys()))
+" "$mcp_config")
 
     for server in $servers; do
         if claude mcp get "$server" &>/dev/null 2>&1; then
@@ -110,19 +113,26 @@ setup_mcp() {
             # mcp_config.json内の $HOME プレースホルダーを実行環境の値へ展開する
             # (Mac/WSLでホームパスが異なるため、設定ファイル自体はハードコードしない)
             cmd_args+=("${arg//\$HOME/$HOME}")
-        done < <(python3 -c "import json; d=json.load(open('$mcp_config'))['mcpServers']['$server']; print('\n'.join(d['args']))")
+        done < <(python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))['mcpServers'][sys.argv[2]]
+print('\n'.join(d['args']))
+" "$mcp_config" "$server")
 
         local command
-        command=$(python3 -c "import json; print(json.load(open('$mcp_config'))['mcpServers']['$server']['command'])")
+        command=$(python3 -c "
+import json, sys
+print(json.load(open(sys.argv[1]))['mcpServers'][sys.argv[2]]['command'])
+" "$mcp_config" "$server")
 
         local env_args=()
         local env_pairs
         env_pairs=$(python3 -c "
-import json
-d = json.load(open('$mcp_config'))['mcpServers']['$server']
+import json, sys
+d = json.load(open(sys.argv[1]))['mcpServers'][sys.argv[2]]
 for k, v in d.get('env', {}).items():
     print(f'{k}={v}')
-")
+" "$mcp_config" "$server")
         while IFS= read -r pair; do
             [ -n "$pair" ] && env_args+=(--env "$pair")
         done <<< "$env_pairs"

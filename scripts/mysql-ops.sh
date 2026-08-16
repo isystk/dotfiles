@@ -123,7 +123,7 @@ case "$COMMAND" in
             echo "❌ クエリーが指定されていません。" >&2
             exit 1
         fi
-        RESULT=$(docker exec -i "$CONTAINER_NAME" bash -c "echo \"$QUERY\" | mysql -u \$MYSQL_USER -p\$MYSQL_PASSWORD \$MYSQL_DATABASE" 2>/dev/null || true)
+        RESULT=$(docker exec -i -e QUERY="$QUERY" "$CONTAINER_NAME" bash -c 'echo "$QUERY" | mysql -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' 2>/dev/null || true)
         echo "$RESULT"
         ;;
 
@@ -140,7 +140,7 @@ case "$COMMAND" in
             echo "❌ --query が指定されていません。" >&2
             exit 1
         fi
-        LIST=$(docker exec -i "$CONTAINER_NAME" bash -c "echo \"$QUERY\" | mysql -N -s -u \$MYSQL_USER -p\$MYSQL_PASSWORD \$MYSQL_DATABASE" 2>/dev/null || true)
+        LIST=$(docker exec -i -e QUERY="$QUERY" "$CONTAINER_NAME" bash -c 'echo "$QUERY" | mysql -N -s -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' 2>/dev/null || true)
         if [ -z "$LIST" ]; then
             echo "❌ $NAME が見つかりませんでした。" >&2
             exit 1
@@ -163,12 +163,18 @@ case "$COMMAND" in
         NETWORK=$(docker inspect "$CONTAINER_NAME" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | awk '{print $1}')
 
         echo "テーブル定義書・ER図を生成中..."
+        # DSNをコマンドライン引数に載せると `ps` 等で他ユーザーにパスワードが見えるため、
+        # --env-file 経由でコンテナ内へ渡し、シェル内で環境変数として展開する
+        TBLS_ENV_FILE=$(mktemp)
+        chmod 600 "$TBLS_ENV_FILE"
+        printf 'TBLS_DSN=mysql://%s:%s@%s:3306/%s\n' "$DB_USER" "$DB_PASS" "$CONTAINER_NAME" "$DB_NAME" > "$TBLS_ENV_FILE"
         docker run --rm \
             --network "$NETWORK" \
+            --env-file "$TBLS_ENV_FILE" \
             -v "$ABS_DOCS_DIR:/output" \
-            k1low/tbls doc --force \
-            "mysql://$DB_USER:$DB_PASS@$CONTAINER_NAME:3306/$DB_NAME" \
-            /output
+            --entrypoint sh \
+            k1low/tbls -c 'tbls doc --force "$TBLS_DSN" /output'
+        rm -f "$TBLS_ENV_FILE"
         echo "✅ $ABS_DOCS_DIR にテーブル定義書・ER図を生成しました"
         ;;
 

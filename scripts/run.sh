@@ -66,7 +66,9 @@ case "${1}" in
                 read -p "これらの未使用リソースをすべて削除しますか？ (y/N): " chk
                 if [[ "$chk" =~ ^[yY]([eE][sS])?$ ]]; then
                     echo "削除を開始します..."
-                    docker system prune -a --volumes -f
+                    docker container prune -f
+                    docker image prune -f
+                    docker volume prune -f
                     echo "クリーンアップが完了しました。"
                 else
                     echo "キャンセルしました。"

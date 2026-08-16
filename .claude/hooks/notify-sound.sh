@@ -4,7 +4,8 @@
 
 set -uo pipefail
 
-source "$HOME/dotfiles/scripts/utils.sh"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/utils.sh"
 
 if [ -n "$IS_MAC" ]; then
   # macOS: システムサウンドを再生

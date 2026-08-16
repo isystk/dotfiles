@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import * as path from 'path';
 
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -34,15 +34,16 @@ function runDiagnostics(document: vscode.TextDocument) {
 
     const diagnostics: vscode.Diagnostic[] = [];
 
+    const clampLine = (line: number) => Math.max(0, Math.min(line, document.lineCount - 1));
+
     // 1. Syntax Check (php -l)
-    const syntaxCmd = `docker exec ${containerName} php -l ${containerFilePath}`;
-    exec(syntaxCmd, (error, stdout, stderr) => {
+    execFile('docker', ['exec', containerName, 'php', '-l', containerFilePath], (error, stdout) => {
         if (error && stdout.includes('Parse error')) {
             // Parse error: syntax error, unexpected token ... in /var/www/html/app/Foo.php on line 10
             const match = stdout.match(/Parse error: (.+) in .+ on line (\d+)/);
             if (match) {
                 const message = match[1];
-                const line = parseInt(match[2], 10) - 1;
+                const line = clampLine(parseInt(match[2], 10) - 1);
                 const range = document.lineAt(line).range;
                 const diagnostic = new vscode.Diagnostic(range, `Syntax: ${message}`, vscode.DiagnosticSeverity.Error);
                 diagnostics.push(diagnostic);
@@ -51,8 +52,7 @@ function runDiagnostics(document: vscode.TextDocument) {
         }
 
         // 2. PHPStan Check
-        const phpstanCmd = `docker exec ${containerName} ./vendor/bin/phpstan analyse ${containerFilePath} --error-format=json`;
-        exec(phpstanCmd, (stanError, stanStdout, stanStderr) => {
+        execFile('docker', ['exec', containerName, './vendor/bin/phpstan', 'analyse', containerFilePath, '--error-format=json'], (stanError, stanStdout) => {
             if (stanStdout) {
                 try {
                     // stdoutの最後の中括弧から探す (前段に余計な出力がある場合への対処)
@@ -64,7 +64,7 @@ function runDiagnostics(document: vscode.TextDocument) {
                             const fileErrors = result.files[containerFilePath];
                             if (fileErrors && fileErrors.messages) {
                                 for (const msg of fileErrors.messages) {
-                                    const line = msg.line ? msg.line - 1 : 0;
+                                    const line = clampLine(msg.line ? msg.line - 1 : 0);
                                     const range = document.lineAt(line).range;
                                     const diagnostic = new vscode.Diagnostic(range, `PHPStan: ${msg.message}`, vscode.DiagnosticSeverity.Error);
                                     diagnostics.push(diagnostic);
@@ -76,7 +76,7 @@ function runDiagnostics(document: vscode.TextDocument) {
                     console.error('Failed to parse PHPStan JSON output', e);
                 }
             }
-            
+
             diagnosticCollection.set(document.uri, diagnostics);
         });
     });

@@ -8,10 +8,12 @@ const PROFILE_DIR = process.argv[2] || join(homedir(), '.claude/tools/google-aut
 const LIMIT = process.argv[3] ? parseInt(process.argv[3], 10) : null;
 
 const tmpProfile = mkdtempSync(join(tmpdir(), 'feedly-profile-'));
-cpSync(PROFILE_DIR, tmpProfile, { recursive: true });
 
 let items = [];
+let notLoggedIn = false;
 try {
+  cpSync(PROFILE_DIR, tmpProfile, { recursive: true });
+
   const context = await chromium.launchPersistentContext(tmpProfile, { headless: true });
   const page = await context.newPage();
 
@@ -28,31 +30,38 @@ try {
     streamJson = await streamRes.json();
   } catch (e) {
     await context.close();
-    console.error('警告: Feedly内部APIの応答を検知できませんでした（未ログインの可能性）。google-chrome-loginスキルで共有プロファイルにログインし直してください。');
-    console.log('[]');
-    process.exit(0);
+    notLoggedIn = true;
+    streamJson = null;
   }
 
-  await context.close();
+  if (streamJson) {
+    await context.close();
 
-  items = (streamJson.items || [])
-    .map((i) => ({
-      id: i.id,
-      title: i.title,
-      url: i.alternate?.[0]?.href || i.canonicalUrl || null,
-      published: i.published ? new Date(i.published).toISOString() : null,
-      summary: i.summary?.content || '',
-    }));
+    items = (streamJson.items || [])
+      .map((i) => ({
+        id: i.id,
+        title: i.title,
+        url: i.alternate?.[0]?.href || i.canonicalUrl || null,
+        published: i.published ? new Date(i.published).toISOString() : null,
+        summary: i.summary?.content || '',
+      }));
+  }
 } finally {
   rmSync(tmpProfile, { recursive: true, force: true });
 }
 
-if (LIMIT) {
-  items = items.slice(0, LIMIT);
-}
+if (notLoggedIn) {
+  console.error('警告: Feedly内部APIの応答を検知できませんでした（未ログインの可能性）。google-chrome-loginスキルで共有プロファイルにログインし直してください。');
+  console.log('[]');
+  process.exitCode = 0;
+} else {
+  if (LIMIT) {
+    items = items.slice(0, LIMIT);
+  }
 
-console.log(JSON.stringify(items, null, 2));
+  console.log(JSON.stringify(items, null, 2));
 
-if (items.length === 0) {
-  console.error('警告: 記事0件。google-chrome-loginスキルでPlaywright MCPの共有プロファイル（~/.claude/tools/google-auth/chrome-profile）にログインし直してください。');
+  if (items.length === 0) {
+    console.error('警告: 記事0件。google-chrome-loginスキルでPlaywright MCPの共有プロファイル（~/.claude/tools/google-auth/chrome-profile）にログインし直してください。');
+  }
 }

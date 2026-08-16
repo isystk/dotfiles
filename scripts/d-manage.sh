@@ -77,7 +77,7 @@ function manage_docker_containers() {
                 docker logs -f "$container"
                 ;;
             "詳細情報を見る (Inspect)")
-                docker inspect $select_container --format '
+                docker inspect "$container" --format '
 ==================================================
 【基本情報】
 コンテナID:   {{.Id}}

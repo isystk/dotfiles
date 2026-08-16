@@ -20,9 +20,9 @@ select_from_list() {
     local selected_item=""
     echo "$header_msg" >&2
 
-    if command -v $ENHANCD_FILTER >/dev/null 2>&1; then
+    if [ -n "${ENHANCD_FILTER:-}" ] && command -v "$ENHANCD_FILTER" >/dev/null 2>&1; then
         # fzy での選択
-        selected_item=$(echo "$list_data" | $ENHANCD_FILTER)
+        selected_item=$(echo "$list_data" | "$ENHANCD_FILTER")
     else
         # fzy がない場合の select
         PS3="番号を入力: "
@@ -43,7 +43,10 @@ select_from_list() {
         return 1
     fi
 
-    echo "$selected_item" | tr -d '\r\n' | xargs
+    selected_item=$(echo "$selected_item" | tr -d '\r\n')
+    selected_item="${selected_item#"${selected_item%%[![:space:]]*}"}"
+    selected_item="${selected_item%"${selected_item##*[![:space:]]}"}"
+    echo "$selected_item"
 }
 
 
@@ -91,7 +94,9 @@ open_browser() {
     if [ -n "$IS_MAC" ]; then
         /usr/bin/open "$@"
     elif [ -n "$IS_WSL" ]; then
-        powershell.exe -Command "Start-Process '$1'"
+        # PowerShellのシングルクォート文字列リテラル内で ' を '' にエスケープし、文字列脱出を防ぐ
+        local escaped="${1//\'/\'\'}"
+        powershell.exe -Command "Start-Process '$escaped'"
     elif [ -n "$IS_LINUX" ]; then
         xdg-open "$@"
     else

@@ -27,6 +27,8 @@ fi
 DANGEROUS_PATTERNS=(
   'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f'
   'rm[[:space:]]+-[a-zA-Z]*f[a-zA-Z]*r'
+  'rm[[:space:]].*--recursive'
+  'rm[[:space:]].*--force'
   'sudo[[:space:]]+rm'
   ':(){:|:&};:'
   'mkfs\.'

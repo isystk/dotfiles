@@ -44,24 +44,24 @@ format_reset() {
 
 # --- stdin JSON パース ---
 eval "$(echo "$input" | jq -r '
-  "MODEL=" + (.model.display_name // "Unknown" | @sh),
-  "EFFORT=" + (.effort.level // "" | @sh),
-  "CTX_SIZE=" + (.context_window.context_window_size // 200000 | tostring),
-  "CTX_USED_PCT=" + (.context_window.used_percentage // 0 | tostring),
-  "CTX_INPUT=" + ((.context_window.current_usage.input_tokens // 0) | tostring),
-  "CTX_CACHE_CREATE=" + ((.context_window.current_usage.cache_creation_input_tokens // 0) | tostring),
-  "CTX_CACHE_READ=" + ((.context_window.current_usage.cache_read_input_tokens // 0) | tostring),
-  "CTX_HAS_USAGE=" + (if .context_window.current_usage then "1" else "0" end),
-  "CWD=" + (.workspace.current_dir // "." | @sh),
-  "LINES_ADD=" + (.cost.total_lines_added // 0 | tostring),
-  "LINES_DEL=" + (.cost.total_lines_removed // 0 | tostring),
-  "FIVE_PCT=" + (.rate_limits.five_hour.used_percentage // empty | floor | tostring),
-  "FIVE_RESET_EPOCH=" + (.rate_limits.five_hour.resets_at // 0 | tostring),
-  "SEVEN_PCT=" + (.rate_limits.seven_day.used_percentage // empty | floor | tostring),
-  "SEVEN_RESET_EPOCH=" + (.rate_limits.seven_day.resets_at // 0 | tostring)
+  "MODEL=" + (.model.display_name // "Unknown" | tostring | @sh),
+  "EFFORT=" + (.effort.level // "" | tostring | @sh),
+  "CTX_SIZE=" + (.context_window.context_window_size // 200000 | tostring | @sh),
+  "CTX_USED_PCT=" + (.context_window.used_percentage // 0 | tostring | @sh),
+  "CTX_INPUT=" + ((.context_window.current_usage.input_tokens // 0) | tostring | @sh),
+  "CTX_CACHE_CREATE=" + ((.context_window.current_usage.cache_creation_input_tokens // 0) | tostring | @sh),
+  "CTX_CACHE_READ=" + ((.context_window.current_usage.cache_read_input_tokens // 0) | tostring | @sh),
+  "CTX_HAS_USAGE=" + (if .context_window.current_usage then "1" else "0" end | @sh),
+  "CWD=" + (.workspace.current_dir // "." | tostring | @sh),
+  "LINES_ADD=" + (.cost.total_lines_added // 0 | tostring | @sh),
+  "LINES_DEL=" + (.cost.total_lines_removed // 0 | tostring | @sh),
+  "FIVE_PCT=" + (.rate_limits.five_hour.used_percentage // empty | floor | tostring | @sh),
+  "FIVE_RESET_EPOCH=" + (.rate_limits.five_hour.resets_at // 0 | tostring | @sh),
+  "SEVEN_PCT=" + (.rate_limits.seven_day.used_percentage // empty | floor | tostring | @sh),
+  "SEVEN_RESET_EPOCH=" + (.rate_limits.seven_day.resets_at // 0 | tostring | @sh)
 ' 2>/dev/null)"
 
-if [ "$CTX_HAS_USAGE" = "1" ]; then
+if [ "$CTX_HAS_USAGE" = "1" ] && [ "${CTX_SIZE:-0}" -gt 0 ] 2>/dev/null; then
   CTX_PCT=$(( (CTX_INPUT + CTX_CACHE_CREATE + CTX_CACHE_READ) * 100 / CTX_SIZE ))
 else
   CTX_PCT=${CTX_USED_PCT%%.*}

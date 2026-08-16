@@ -43,6 +43,13 @@ fi
 if [ -f "deleted.txt" ] && [ -s "deleted.txt" ]; then
     echo "🗑️ Removing deleted files..."
     while IFS= read -r file; do
+        # 絶対パスや ".." を含むパスは意図しない場所のファイル削除につながるため拒否する
+        case "$file" in
+            /*|*..*)
+                echo "   ⚠️  Skipped (unsafe path): $file"
+                continue
+                ;;
+        esac
         if [ -e "$file" ]; then
             printf "❓ '%s' を削除しますか？ (y/n): " "$file"
             read -r answer < /dev/tty
