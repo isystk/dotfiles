@@ -132,10 +132,6 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 ├── cleanup.bat           # Windows用クリーンアップ
 ├── documents/            # ドキュメント群
 ├   └── cheatsheet.md     # コマンドリファレンス
-├── tools/                # 外部ツール群
-├   ├── ChgKey.exe        # CapsLockをCtrlに変更
-│   ├── vimmer-ahk.exe    # Vim用IME切替
-│   └── wslgit/           # WSL Gitクライアント連携
 └── scripts/              # 自作ユーティリティ
 
 ```
@@ -148,6 +144,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 * **秘匿情報の管理**: APIキー等は `.gitignore` 対象の `.zshrc.local` や `.setenv.local` を各自作成して記述してください。Git認証情報は `.gitconfig.local`（`.gitconfig.local.example` を複製）でOS別の `credential.helper`（`osxkeychain` / `manager` / `cache` 等）を設定してください。
 * **変更後の事前チェック (重要)**: 本リポジトリの設定やスクリプトを変更・更新した後は、Claude Code のスキル **`check-privacy-and-secrets`** を実行（例: 「プライベート情報や特定プロジェクトの情報が含まれていないかチェックして」と指示）し、APIキー・個人情報・個別プロジェクト依存のコードが誤って混入していないか事前チェックを行ってください。
 * **改行コード**: `.gitattributes` により、Windows環境での編集時も `LF` が強制されます。
+* **実行ファイル(exe)の非同梱**: Windows用の外部ツール（CapsLock変換、Vim用IME切替、WSL Gitクライアント連携）はリポジトリに含めていません。セキュリティソフトによる誤検知を避けるため、各自「📝 Windows 開発環境セットアップ TIPS」内のリンクから配布元公式サイト・GitHub Releasesよりダウンロードしてください。
 
 ---
 
@@ -163,30 +160,34 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 
 キーボードの CapsLock キーを Ctrl キーとして機能させます。
 
-* **実行ファイル:** `tools\ChgKey.exe`
+* **配布元:** [ChgKey (Change Key)](https://satoshi3.sakura.ne.jp/f_soft/dw_win.htm)
 * **手順:**
-1. 上記ファイルを **管理者権限** で実行します。
-2. 画面上の CapsLock キーを選択し、変更先に Ctrl キーを指定します。
-3. 設定保存後、PCを再起動すると反映されます。
+1. 上記配布元から `ChgKey.exe` をダウンロードします。
+2. ダウンロードしたファイルを **管理者権限** で実行します。
+3. 画面上の CapsLock キーを選択し、変更先に Ctrl キーを指定します。
+4. 設定保存後、PCを再起動すると反映されます。
 
 ### 2. Vim: Esc 時に自動で英数入力へ切り替える
 
 Vim（または他エディタのVimモード）でインサートモードを抜ける際、IMEを自動的にオフにします。
 
-* **実行ファイル:** `tools\vimmer-ahk.exe`
+* **配布元:** [vimmer-ahk Releases](https://github.com/koirand/vimmer-ahk/releases)
 * **設定方法:**
-1. `Win + R` キーを押し、`shell:startup` と入力して実行します。
-2. 開いた「スタートアップ」フォルダに、`vimmer-ahk.exe` をコピーします。
-3. 次回ログイン時より自動で常駐し、機能が有効になります。
+1. 上記配布元から `vimmer-ahk.exe` をダウンロードします。
+2. `Win + R` キーを押し、`shell:startup` と入力して実行します。
+3. 開いた「スタートアップ」フォルダに、ダウンロードした `vimmer-ahk.exe` をコピーします。
+4. 次回ログイン時より自動で常駐し、機能が有効になります。
 
 ### 3. Windows版 Git クライアントから WSL の Git を利用する
 
 Windows上のGUIクライアント（SourceTree等）から、WSL内にインストールされた Git を直接呼び出せるようにします。
 これにより、WindowsとWSL間での文字コード等の不整合を防ぎ、一貫したGit操作が可能になります。
 
+* **配布元:** [wslgit Releases](https://github.com/andy-5/wslgit/releases)
 * **セットアップ:**
-1. `tools\wslgit\install.bat` を **管理者権限** で実行します。
-2. 実行後、同フォルダ内に `cmd\git.exe` が生成されます。
+1. 上記配布元から `wslgit.zip` をダウンロードし、任意のフォルダに展開します（`wslgit\cmd\wslgit.exe` 等が含まれます）。
+2. 展開したフォルダ内の `install.bat` を **管理者権限** で実行します。
+3. 実行後、同フォルダ内に `cmd\git.exe` が生成されます。
 
 * **クライアント設定:**
   利用しているGitクライアントの「Git実行ファイルのパス」設定にて、生成された `cmd\git.exe` を指定してください。
