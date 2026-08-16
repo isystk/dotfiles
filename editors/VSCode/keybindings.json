@@ -1,0 +1,14 @@
+[
+  // コマンドパレットをShift+Shiftで開く
+  {
+    "key": "shift shift",
+    "command": "workbench.action.quickOpen",
+    "when": "editorTextFocus"
+  },
+  // 行を結合するコマンドをCtrl+Shift+Jに割り当てる
+  {
+    "key": "ctrl+shift+j",
+    "command": "editor.action.joinLines",
+    "when": "editorTextFocus"
+  }
+]

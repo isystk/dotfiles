@@ -1,0 +1,167 @@
+{
+  /* ========================================================================
+     1. セキュリティ & インフラ設定
+     ======================================================================== */
+  // WSL上のファイルへのアクセスを許可する設定
+  "security.allowedUNCHosts": [
+    "wsl.localhost"
+  ],
+  "security.workspace.trust.untrustedFiles": "open",     // 信頼されていないファイルを開く際の動作を「開く」に設定
+  "explorer.compactFolders": false,                      // エクスプローラーでフォルダを1行で表示（チェックボックス形式）
+  "git.path": "C:\\Users\\<YOUR_USERNAME>\\wslgit\\cmd\\git.exe",  // Gitの実行ファイルパスをWSL上のものに指定（<YOUR_USERNAME>はご自身のWindowsユーザー名に置き換えてください）
+
+  /* ========================================================================
+     2. ターミナルの設定
+     ======================================================================== */
+  // Windows側でターミナルを開く際のデフォルトをWSL(Ubuntu)に指定
+  "terminal.integrated.defaultProfile.windows": "Ubuntu (WSL)",
+
+  /* ========================================================================
+     3. エディタ本体の基本設定 (見た目・インデント・挙動)
+     ======================================================================== */
+  "editor.tabSize"               : 2,          // インデント幅を2に設定
+  "editor.insertSpaces"          : true,       // Tabキーでスペースを入力
+  "editor.renderWhitespace"      : "all",      // スペース・タブ・改行を可視化
+  "editor.wordWrap"              : "off",      // 長い行はウィンドウ幅で折り返し表示しない
+  "editor.detectIndentation"     : false,      // ファイル開閉時のインデント自動検知をオフ
+  "editor.autoIndent"            : "full",     // 自動インデントを最大限有効化
+  "editor.cursorSurroundingLines": 10,         // スクロール時に上下に確保する行数 (Vim: scrolloff)
+  "editor.matchBrackets"         : "always",   // 常にペアになる括弧を強調 (Vim: showmatch)
+  "editor.mouseWheelZoom"        : true,       // Ctrl + マウスホイールでズームイン・アウトを有効化
+  "editor.rename.enablePreview"  : false,      // 名前変更時のプレビュー表示を無効化
+  "editor.formatOnSave"          : false,      // 自動整形を無効化
+  "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?", // 単語区切り文字
+  "workbench.editor.enablePreview": false,     // ファイル選択時にプレビューモード（上書き）を無効化
+  "search.smartCase"             : true,       // 検索時、大文字を含まない場合は大文字小文字を区別しない (Vim: smartcase)
+  "search.exclude": {
+    "**/.git/objects/**": true,
+    "**/node_modules/**": true,
+    "**/.history/**": true
+  },
+  "files.eol"                    : "\n",       // 改行コードをLFに統一
+  "files.autoSave"               : "afterDelay", // 一定時間入力がないときに自動保存
+  "files.autoSaveDelay"          : 1000,       // 1秒間入力がないときに自動保存
+  "files.autoGuessEncoding"      : true,       // ファイルの文字コードを自動判別
+  "files.watcherExclude": {
+    "**/.git/objects/**": true, // Git オブジェクトを監視しない
+    "**/node_modules/**": true, // node_modules を監視しない
+    "**/.history/**"
+  },
+  "files.exclude": {
+    "**/.history": true
+  },
+
+  /* ========================================================================
+     4. Vim 拡張機能 (VSCodeVim) の基本挙動
+     ======================================================================== */
+  "vim.useSystemClipboard": true, // OSのクリップボードと同期 (Vim: clipboard=unnamedplus)
+  "vim.hlsearch": true,           // 検索結果をハイライト (Vim: hlsearch)
+  "vim.incsearch": true,          // 入力中に即座に検索結果へ移動 (Vim: incsearch)
+  "vim.leader": "<space>",        // リーダーキーをスペースに設定 (Vim: mapleader)
+
+  /* Vimに奪われず、VSCode本体のショートカットとして動作させるキーの設定 
+     false に設定したキーは VSCode 本来の機能（検索・置換など）が動きます。
+  */
+  "vim.handleKeys": {
+    "<C-f>": false,  // 検索 (Find)
+    "<C-r>": false,  // 置換 (Replace)
+    "<C-e>": false,  // Agent Manager
+    "<C-l>": false   // Agent Panel
+  },
+
+  /* ========================================================================
+     5. Vim マッピング設定 (Normal Mode: 通常時)
+     ======================================================================== */
+  "vim.normalModeKeyBindingsNonRecursive": [
+    // Esc 2回で検索ハイライトを消去 (:nohl)
+    { "before": ["<Esc>", "<Esc>"], "commands": [":nohl"] },
+    // 折り返し行でも見た目通りに1行移動 (j -> gj, k -> gk)
+    { "before": ["j"], "after": ["g", "j"] },
+    { "before": ["k"], "after": ["g", "k"] },
+    // Tabキーで対応する括弧へジャンプ (Vim: %)
+    { "before": ["<Tab>"], "after": ["%"] },
+    // Ctrl+a でドキュメント全体を選択
+    { "before": ["<C-a>"], "after": ["g", "g", "V", "G"] },
+    // Ctrl+z で Undo (元に戻す)
+    { "before": ["<C-z>"], "after": ["u"] },
+    // Ctrl+y で Redo (やり直し)
+    { "before": ["<C-y>"], "after": ["<C-r>"] },
+    // リーダーキー + r で参照検索をトリガー (VSCodeの「参照を検索」機能を呼び出す)
+    { "before": ["<space>", "r"], "commands": [ "editor.action.referenceSearch.trigger" ]},
+    // リーダーキー + q でタスク実行コマンドをトリガー
+    { "before": ["<space>", "q"], "commands": [ "workbench.action.tasks.runTask" ]},
+    // リーダーキー + r でカーソル下の単語を検索
+    { "before": ["<space>", "r"], "commands": [ "editor.action.addSelectionToNextFindMatch", "workbench.action.replaceInFiles" ]},
+  ],
+
+  /* ========================================================================
+     6. Vim マッピング設定 (Visual Mode: 選択時)
+     ======================================================================== */
+  "vim.visualModeKeyBindingsNonRecursive": [
+    // 選択範囲を維持したままインデント調整 (Tab / Shift+Tab)
+    { "before": ["<Tab>"], "after": [">", "g", "v"] },
+    { "before": ["<S-Tab>"], "after": ["<", "g", "v"] },
+    // Ctrl+x でカット, Ctrl+c でコピー
+    { "before": ["<C-x>"], "after": ["x"] },
+    { "before": ["<C-c>"], "after": ["y"] },
+    // 貼り付け時にヤンク内容（クリップボード）を上書きしない設定
+    // 選択範囲を消去用レジスタ "_" に捨ててから貼り付ける
+    { "before": ["<C-v>"], "after": ["\"", "_", "d", "P"] },
+    { "before": ["p"], "after": ["\"", "_", "d", "P"] },
+    { "before": ["P"], "after": ["\"", "_", "d", "P"] }
+  ],
+
+  /* ========================================================================
+     7. Vim マッピング設定 (Insert Mode: 入力時)
+     ======================================================================== */
+  "vim.insertModeKeyBindings": [
+    // Emacsライクなカーソル移動 (Ctrl+h/j/k/l)
+    { "before": ["<C-h>"], "after": ["<Left>"] },
+    { "before": ["<C-j>"], "after": ["<Down>"] },
+    { "before": ["<C-k>"], "after": ["<Up>"] },
+    { "before": ["<C-l>"], "after": ["<Right>"] },
+    // 入力モード中でも Ctrl+z / Ctrl+y で Undo / Redo
+    { "before": ["<C-z>"], "commands": ["undo"] },
+    { "before": ["<C-y>"], "commands": ["redo"] }
+  ],
+
+  "editor.inlineSuggest.enabled": true, // コード内に薄く補完候補を表示する
+  "editor.quickSuggestions": {
+    "other": "on", // 他の言語でも補完候補を表示する
+    "comments": "on", // コメントでは補完候補を表示しない
+    "strings": "on" // 文字列では補完候補を表示しない
+  },
+ 
+  /* --- Plugin Settings  --- */
+  "gitlens.ai.model": "vscode",
+  "gitlens.ai.vscode.model": "copilot:gpt-4.1",
+  "intelephense.files.exclude": [
+    "**/.history/**",
+    "**/node_modules/**",
+    "**/vendor/**",
+    "**/.git/**"
+  ],
+  "local-history.path": "", // 履歴の保存先
+  "local-history.maxDisplay": 50, // 表示件数
+  "local-history.daysLimit": 30,
+  "local-history.saveDelay": 0,
+  "local-history.exclude": [
+    "**/.history/**",
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/vendor/**",
+  ],
+  "remote.autoForwardPortsSource": "hybrid",
+  "remote.autoForwardPortsFallback": 30, // 保存日数
+  "bookmarks.saveBookmarksInProject": true, // プロジェクト内でブックマークを有効にする
+  "laravelPhpunitRunner.containerName": "php-app",
+  "laravelPhpunitRunner.hostProjectRoot": "/home/user/myproject",
+  "laravelPhpunitRunner.composePath": "/home/user/myproject",
+
+  // PHP 組み込み検証を無効化（Intelephense を使用するため）
+  "php.validate.enable": false,
+  "gitlens.advanced.fileHistoryShowAllBranches": true,
+  "antigravity.marketplaceGalleryItemURL": "https://marketplace.visualstudio.com/items",
+  "antigravity.marketplaceExtensionGalleryServiceURL": "https://marketplace.visualstudio.com/_apis/public/gallery",
+  "http.systemCertificatesNode": true
+}

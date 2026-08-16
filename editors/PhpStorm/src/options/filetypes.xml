@@ -1,0 +1,8 @@
+<application>
+  <component name="FileTypeManager" version="19">
+    <extensionMap>
+      <mapping pattern="mcp.json" type="JSON5" />
+      <removed_mapping ext="log" approved="true" type="PLAIN_TEXT" />
+    </extensionMap>
+  </component>
+</application>

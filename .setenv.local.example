@@ -1,0 +1,23 @@
+
+# Gemini APIキー
+export GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# ChatGPT (OpenAI) APIキー
+export OPENAI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Wordpress URL
+export WORDPRESS_URL=https://blog.example.com/wp-json/wp/v2
+
+# Wordpress APIキー (`echo "<ユーザー名>:<パスワード>" | base64` で生成)
+export WORDPRESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# 許可するメールアドレス (Git commiter name/email for Playwright)
+export ALLOWED_EMAIL=xxxx@xxxx.com
+
+# run ask コマンドでAIに読み込ませたいコンテキスト
+export ASK_FILES
+typeset -T ASK_FILES ask_files
+ask_files=(
+  "~/dotfiles/README.md"
+  "~/dotfiles/documents/cheatsheet.md"
+)

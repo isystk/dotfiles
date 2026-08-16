@@ -1,0 +1,59 @@
+{
+  "name": "laravel-blade-goto-controller",
+  "displayName": "Laravel Blade Goto Controller",
+  "description": "Jump from a Blade template to the controller action that renders it",
+  "version": "0.1.0",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "laravel",
+    "php",
+    "blade",
+    "controller",
+    "goto"
+  ],
+  "activationEvents": [
+    "onLanguage:blade"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "blade",
+        "aliases": ["Blade", "blade"],
+        "extensions": [".blade.php"]
+      }
+    ],
+    "commands": [
+      {
+        "command": "laravel-blade-goto-controller.goto",
+        "title": "Laravel: Go to Controller"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "laravel-blade-goto-controller.goto",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "editorLangId == blade"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  }
+}

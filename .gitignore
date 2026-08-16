@@ -1,0 +1,49 @@
+# --- OS generated files ---
+.DS_Store
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*~
+.netrwhist
+
+# --- Build Artifacts & Generated Files ---
+dist/
+archive_*.zip
+tmp_*
+**/node_modules/
+
+# --- Tools / Runtime ---
+.history
+*.log
+.mise.xml
+.python-version
+.node-version
+__pycache__/
+*.pyc
+
+# --- Sensitive Information (CRITICAL) ---
+# これらは絶対にリポジトリに含めないようにします
+.ssh/
+.aws/
+.kube/
+*.pem
+*.key
+.env*
+!.env.example
+.setenv.local
+.gitconfig.local
+.config/gh/hosts.yml
+
+# --- Version Control ---
+# サブモジュール以外の管理外リポジトリがある場合に備えます
+.svn
+
+# --- Application Specific ---
+.claude/skills/.system/
+.codex/config.toml
+

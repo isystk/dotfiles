@@ -1,0 +1,49 @@
+{
+  "name": "laravel-phpstan-diagnostics",
+  "displayName": "Laravel PHPStan & Syntax Diagnostics (Docker)",
+  "description": "Runs php -l and phpstan inside a docker container on save",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:php"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Laravel PHPStan Diagnostics",
+      "properties": {
+        "laravelPhpstanDiagnostics.containerName": {
+          "type": "string",
+          "default": "app",
+          "description": "Docker container name to run commands in"
+        },
+        "laravelPhpstanDiagnostics.localWorkspacePath": {
+          "type": "string",
+          "default": "/root/projects/app",
+          "description": "Local workspace path to map"
+        },
+        "laravelPhpstanDiagnostics.containerWorkspacePath": {
+          "type": "string",
+          "default": "/var/www/html",
+          "description": "Container workspace path to map"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^3.9.1",
+    "typescript": "^5.1.3"
+  }
+}

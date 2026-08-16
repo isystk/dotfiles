@@ -1,0 +1,90 @@
+{
+  "name": "laravel-phpunit-runner",
+  "displayName": "Laravel PHPUnit Runner",
+  "description": "Run PHPUnit tests inside Docker containers for Laravel projects",
+  "version": "0.1.0",
+  "publisher": "isystk",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Testing"],
+  "activationEvents": ["onLanguage:php"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "laravelPhpunitRunner.runAllTests",
+        "title": "PHPUnit: Run All Tests"
+      },
+      {
+        "command": "laravelPhpunitRunner.runFileTests",
+        "title": "PHPUnit: Run Current File Tests"
+      },
+      {
+        "command": "laravelPhpunitRunner.runMethodTest",
+        "title": "PHPUnit: Run Test at Cursor"
+      },
+      {
+        "command": "laravelPhpunitRunner.goToTestFile",
+        "title": "PHPUnit: Go to Test File"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "laravelPhpunitRunner.runFileTests",
+        "key": "ctrl+shift+t",
+        "when": "editorLangId == php"
+      },
+      {
+        "command": "laravelPhpunitRunner.runMethodTest",
+        "key": "ctrl+shift+alt+t",
+        "when": "editorLangId == php"
+      },
+      {
+        "command": "laravelPhpunitRunner.goToTestFile",
+        "key": "ctrl+shift+alt+g",
+        "when": "editorLangId == php"
+      }
+    ],
+    "configuration": {
+      "title": "Laravel PHPUnit Runner",
+      "properties": {
+        "laravelPhpunitRunner.containerName": {
+          "type": "string",
+          "default": "",
+          "description": "Docker container / service name used with docker exec or docker compose exec (required)"
+        },
+        "laravelPhpunitRunner.hostProjectRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the project root on the host machine (required)"
+        },
+        "laravelPhpunitRunner.containerWorkspacePath": {
+          "type": "string",
+          "default": "/var/www/html",
+          "description": "Absolute path to the project root inside the container"
+        },
+        "laravelPhpunitRunner.composePath": {
+          "type": "string",
+          "default": "",
+          "description": "Directory that contains docker-compose.yml. When empty, falls back to docker exec instead of docker compose exec"
+        },
+        "laravelPhpunitRunner.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline Run buttons via CodeLens in PHP files"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

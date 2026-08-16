@@ -1,0 +1,5 @@
+IdeaVIM
+String Manipulation
+com.laravel_idea.plugin
+com.github.copilot
+zielu.gittoolbox

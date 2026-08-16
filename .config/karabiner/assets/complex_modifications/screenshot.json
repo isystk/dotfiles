@@ -1,0 +1,31 @@
+{
+  "title": "Custom Screenshot Shortcuts",
+  "rules": [
+    {
+      "description": "Command + Shift + S -> Command + Shift + 4",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "s",
+            "modifiers": {
+              "mandatory": [
+                "command",
+                "shift"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "4",
+              "modifiers": [
+                "command",
+                "shift"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

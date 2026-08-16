@@ -1,0 +1,14 @@
+<templateSet group="PHP">
+  <template name="batm" value="namespace App\Console\Commands;&#10;&#10;use Illuminate\Console\Command;&#10;&#10;/**&#10; * $DESCRIPTION_SUMMARY$&#10; */&#10;class $CLASS_NAME$ extends Command&#10;{&#10;    /**&#10;     * The name and signature of the console command.&#10;     *&#10;     * @var string&#10;     */&#10;    protected $signature = '$COMMAND_NAME$&#10;        {$ARG_NAME$ : $ARG_DESCRIPTION$}&#10;        {--run : このオプションを指定した場合のみ本実行を行う(未指定時はドライラン)}';&#10;&#10;    /**&#10;     * The console command description.&#10;     *&#10;     * @var string&#10;     */&#10;    protected $description = '$DESCRIPTION_SUMMARY$&#10;        ・$PROCESS_1$&#10;        ・$PROCESS_2$';&#10;&#10;    /**&#10;     * Execute the console command.&#10;     *&#10;     * @return int&#10;     */&#10;    public function handle(): int&#10;    {&#10;        $this-&gt;info(&quot;[$COMMAND_NAME$] 処理を開始します。&quot;);&#10;&#10;        $isRun = (bool)$this-&gt;option('run');&#10;        $targetPath = $this-&gt;argument('$ARG_NAME$');&#10;&#10;        if (!$isRun) {&#10;            $this-&gt;comment('【DRY RUN】本実行時は --run オプションを付与してください。');&#10;        }&#10;&#10;        try {&#10;            // $END$&#10;            &#10;        } catch (\Exception $e) {&#10;            $this-&gt;error(&quot;[$COMMAND_NAME$] エラーが発生しました。&quot;);&#10;            $this-&gt;error($e-&gt;getMessage());&#10;            return self::FAILURE;&#10;        }&#10;        &#10;        $this-&gt;info(&quot;[$COMMAND_NAME$] 正常終了しました。&quot;);&#10;        return self::SUCCESS;&#10;    }&#10;}&#10;" description="バッチファイルのモックを作成する" toReformat="false" toShortenFQNames="true">
+    <variable name="DESCRIPTION_SUMMARY" expression="" defaultValue="" alwaysStopAt="true" />
+    <variable name="CLASS_NAME" expression="" defaultValue="" alwaysStopAt="true" />
+    <variable name="COMMAND_NAME" expression="" defaultValue="" alwaysStopAt="true" />
+    <variable name="ARG_NAME" expression="" defaultValue="" alwaysStopAt="true" />
+    <variable name="ARG_DESCRIPTION" expression="" defaultValue="" alwaysStopAt="true" />
+    <variable name="PROCESS_1" expression="" defaultValue="" alwaysStopAt="true" />
+    <variable name="PROCESS_2" expression="" defaultValue="" alwaysStopAt="true" />
+    <context>
+      <option name="PHP" value="true" />
+    </context>
+  </template>
+</templateSet>

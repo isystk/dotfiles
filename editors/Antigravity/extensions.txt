@@ -1,0 +1,10 @@
+alefragnani.bookmarks
+cweijan.dbclient-jdbc
+cweijan.vscode-database-client2
+eamodio.gitlens
+marp-team.marp-vscode
+ms-ceintl.vscode-language-pack-ja
+onecentlin.laravel5-snippets
+vscodevim.vim
+takashi-uchida.compare-diff-with-clipborad
+xyz.local-history

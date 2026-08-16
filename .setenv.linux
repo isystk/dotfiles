@@ -1,0 +1,19 @@
+#-------------------------
+# Linux固有の環境設定
+#-------------------------
+
+# 本番用ターミナル設定
+#function precmd() {
+#  local EXIT_STATUS="%(?.${PROMPT_OK}.${PROMPT_ERR})"
+#  local TIME=$(date "+%H:%M:%S")
+#  local PROD_LABEL="%{${fg_bold[red]}%}[PROD]%{${reset_color}%}"
+#  PROMPT="${PROD_LABEL} ${EXIT_STATUS}${TIME} $ %B${RESET}"
+#}
+#echo "${fg_bold[red]}"
+#echo "------------------------------------------------"
+#echo "  CAUTION: YOU ARE ON THE PRODUCTION SERVER!    "
+#echo "------------------------------------------------"
+#echo "${reset_color}"
+
+# Neovimをviに設定
+export _EDITOR_PATH='nvim'

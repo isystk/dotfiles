@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "respectGitignore": true,
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git show *)",
+      "Bash(git fetch *)",
+      "Bash(git stash list)",
+      "Bash(git tag *)",
+      "Bash(git describe *)",
+      "Bash(git blame *)",
+      "Bash(git rev-parse *)",
+      "Bash(curl -s *)",
+      "Bash(curl --silent *)",
+      "Bash(curl -I *)",
+      "Bash(curl --head *)",
+      "WebFetch(*)",
+      "WebSearch(*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(nc *)",
+      "Bash(ncat *)",
+      "Bash(telnet *)",
+      "Bash(wget *)",
+      "Bash(cat ~/.ssh/*)",
+      "Bash(cat ~/.aws/*)",
+      "Bash(cat ~/.config/gh/*)",
+      "Bash(cat ~/.gnupg/*)",
+      "Bash(/root/.ssh/*)",
+      "Bash(/root/.aws/*)",
+      "Bash(/root/.config/gh/*)",
+      "Bash(cat *.pem)",
+      "Bash(cat *.key)",
+      "Bash(cat *id_rsa*)",
+      "Bash(cat *id_ed25519*)",
+      "Bash(cat *_ecdsa*)",
+      "Bash(cat *credentials*)",
+      "Bash(env)",
+      "Bash(printenv)",
+      "Bash(export -p)",
+      "Bash(curl*-X POST*)",
+      "Bash(curl*-X PUT*)",
+      "Bash(curl*-X DELETE*)",
+      "Bash(curl*-X PATCH*)",
+      "Bash(curl*--data*)",
+      "Bash(curl* -d *)",
+      "Bash(curl*-F *)",
+      "Bash(curl* -T *)",
+      "Bash(curl*--upload-file*)",
+      "Bash(curl*--json*)",
+      "Bash(git commit *)",
+      "Bash(* git commit *)",
+      "Bash(git push *)",
+      "Bash(* git push *)",
+      "Bash(git merge *)",
+      "Bash(* git merge *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch -d *)",
+      "Bash(git stash drop *)",
+      "Bash(git stash clear)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ],
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable"
+  },
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/context-check.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/guard-dangerous-bash.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/remind-serena-edit.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Grep|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx --from git+https://github.com/oraios/serena serena-hooks remind --client claude-code",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx --from git+https://github.com/oraios/serena serena-hooks activate --client claude-code",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/takeover.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/notify-sound.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "enableWorkflows": true,
+  "workflowSizeGuideline": "medium",
+  "statusLine": {
+    "type": "command",
+    "command": "cat | bash ~/.claude/statusline.sh"
+  },
+  "enabledPlugins": {
+    "genshijin@genshijin": true,
+    "superpowers@superpowers-marketplace": true,
+    "dig@kuu-marketplace": true,
+    "php-lsp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "genshijin": {
+      "source": {
+        "source": "github",
+        "repo": "InterfaceX-co-jp/genshijin"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "kuu-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "fumiya-kume/claude-code"
+      }
+    }
+  },
+  "language": "Japanese",
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
+  "autoUpdatesChannel": "stable",
+  "tui": "fullscreen",
+  "theme": "dark",
+  "preferredNotifChannel": "terminal_bell",
+  "autoCompactEnabled": true,
+  "fileCheckpointingEnabled": true,
+  "showTurnDuration": true,
+  "teammateMode": "tmux",
+  "prStatusFooterEnabled": true
+}

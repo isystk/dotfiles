@@ -1,0 +1,4 @@
+{
+  "text_model": "gemini-3.1-flash-lite",
+  "image_model": "gemini-3.1-flash-image-preview"
+}

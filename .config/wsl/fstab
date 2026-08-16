@@ -1,0 +1,4 @@
+# UNCONFIGURED FSTAB FOR BASE SYSTEM
+
+G:  /mnt/g  drvfs  defaults  0  0
+

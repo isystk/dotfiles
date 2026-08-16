@@ -1,0 +1,15 @@
+#!/bin/bash
+
+PROTECTED_BRANCHES="^(main|master|develop)$"
+
+while read local_ref local_sha remote_ref remote_sha
+do
+    BRANCH=$(echo $local_ref | sed 's/refs\/heads\///')
+    if [[ $BRANCH =~ $PROTECTED_BRANCHES ]]; then
+        echo "❌ [Policy] $BRANCH ブランチへの直接Pushは禁止されています！"
+        exit 1
+    fi
+done
+
+command -v git-lfs >/dev/null 2>&1 || { echo >&2 "\nThis repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the 'pre-push' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks').\n"; exit 2; }
+git lfs pre-push "$@"

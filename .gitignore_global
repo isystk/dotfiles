@@ -1,0 +1,7 @@
+.history/
+.serena/
+.playwright-mcp/
+**/.claude/settings.local.json
+**/.claude/pr-knowledge-state.json
+CLAUDE.local.md
+HANDOVER.md

@@ -1,0 +1,35 @@
+# 1. デフォルト設定：テキストファイルは自動検知、改行はプラットフォームに合わせる
+* text=auto
+
+# 2. テキストファイルを明示（誤判定防止）
+*.txt       text
+*.md        text
+*.json      text
+
+# 3. 改行コードを LF に固定（Mac/WSL/Linuxで必須の設定）
+# ここを徹底することで、シェルスクリプトの実行エラーを防ぎます
+*.sh        text eol=lf
+*.zsh       text eol=lf
+.zshrc      text eol=lf
+.bashrc     text eol=lf
+.bash_profile text eol=lf
+.vimrc      text eol=lf
+.ideavimrc  text eol=lf
+
+# 4. Windows用ファイルは CRLF に固定
+*.vcproj    text eol=crlf
+*.sln       text eol=crlf
+*.bat       text eol=crlf
+
+# 5. バイナリファイル（Gitが中身をいじらないようにする）
+*.jpg       binary
+*.png       binary
+*.gif       binary
+*.ico       binary
+*.exe       binary
+
+# ========================================
+# 特定ファイルの改行コード指定（Windows用）
+# ========================================
+.wslconfig text eol=crlf
+editors/VSCode/settings.json text eol=crlf

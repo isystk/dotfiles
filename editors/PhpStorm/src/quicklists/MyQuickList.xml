@@ -1,0 +1,6 @@
+<list display="MyQuickList" description="自分専用のミニメニュー">
+  <action id="Tool_外部ツール_MakeTest" />
+  <action id="Tool_外部ツール_MakeFormat" />
+  <action id="QuickList.$Separator$" />
+  <action id="osmedile.intellij.stringmanip.PopupChoiceAction" />
+</list>

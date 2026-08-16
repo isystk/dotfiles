@@ -1,0 +1,159 @@
+[include]
+    path = ~/.gitconfig.local
+
+[core]
+    autocrlf = false      # 改行コードの自動変換（LF→CRLFなど）を無効にする
+    safecrlf = true       # 改行コード混在時にコミットを拒否して変換ミスを防ぐ
+    filemode = false      # ファイルのパーミッション変更を差分として検知しない
+    whitespace = cr-at-eol # 行末のCR（Windows改行）を差分（^M）として表示させない
+    quotepath = false     # 日本語ファイル名がエスケープ（\343..）されるのを防ぐ
+    ignorecase = false    # ファイル名の大文字・小文字を厳密に区別する
+    hooksPath = ~/.config/git/hooks # Gitフック（共有スクリプト等）の置き場所を指定
+    editor = "sh -c 'exec ${EDITOR:-vi} \"$@\"' --" # 標準のエディタを環境変数EDITORに従って設定
+    excludesfile = ~/dotfiles/.gitignore_global
+
+[rerere]
+    enabled = true        # 一度解決したコンフリクトの手順を記憶し、次回以降自動適用する
+
+[color]
+    # 各種出力に自動で色を付けて視認性を高める
+    ui = auto
+    status = auto
+    diff = auto
+    branch = auto
+    interactive = auto
+    grep = auto
+
+[pull]
+    ff = only             # pull時にFastForwardさせる。マージコミットを作らない
+
+[fetch]
+    prune = true          # リモートで消されたブランチを、fetch時にローカル側でも削除する
+
+[push]
+    default = simple       # 現在のブランチと同名のリモートブランチにpushする設定
+    autoSetupRemote = true # 初回push時に自動で上流ブランチを設定する
+
+[diff]
+    tool = vimdiff
+
+[rebase]
+	autostash = true      # rebase開始前に自動でstashし、終了後に自動でpopする
+
+[merge]
+    ff = true             # 可能な場合はFastForwardマージを行う
+    tool = vimdiff
+    conflictstyle = diff3 # コンフリクト時に「自分の変更」「相手の変更」に加えて「共通の基点」も表示
+
+[mergetool]
+    keepBackup = false    # マージ完了後に .orig ファイル（バックアップ）を作らない
+    prompt = false        # 毎回「ツールを起動しますか？」と聞かれないようにする
+
+[mergetool "vimdiff"]
+    cmd = "${EDITOR:-nvim} -d \"$LOCAL\" \"$REMOTE\" \"$MERGED\" \"$BASE\""
+
+[branch]
+    autosetuprebase = always # 新しいブランチ作成時、pullの設定を自動的にrebaseにする
+    sort = -committerdate    # ブランチ一覧を最終コミットが新しい順に並べる
+
+[credential]
+    # helper は ~/.gitconfig.local で設定する（storeは平文保存のため避け、OS別のOS資格情報ストアを使う）
+    # 例: helper = osxkeychain (Mac) / helper = manager (Windows) / helper = cache (Linux)
+
+[alias]
+    # 基本コマンドの短縮
+    st = status
+    sa = stash --all          # 無視設定や未追跡ファイルも含めて全てスタッシュ
+    co = checkout
+    up = pull --rebase        # 最新を取り込んで自分のコミットを上に乗せる
+    pu = push -u origin       # 初回push時に上流ブランチも同時に設定
+    ad = add
+    rmc = rm -r --cached      # Gitの管理対象から除外する
+    ca = commit --amend       # 直前のコミットメッセージや内容を修正
+    cr = commit --amend --no-edit --reset-author # 直前のコミットの作成者と日時を更新
+    # リモートにあれば追跡、なければ --no-track でブランチを作成
+    cb = "!f() { \
+        case \"$2\" in \
+            origin/\"$1\") git checkout -b \"$1\" \"$2\" ;; \
+            origin/*)     git checkout --no-track -b \"$1\" \"$2\" ;; \
+            *)            git checkout -b \"$1\" ${2:+\"$2\"} ;; \
+        esac; \
+    }; f"
+    # AIにメッセージを作らせ、それを初期値としてVimを開く
+    cm = "!f() { \
+        BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null); \
+        BRANCH=${BRANCH##*/}; \
+        AI_MSG=$(git diff --cached | gemini-cli -t git-commit); \
+        git commit -e -m \"#[$BRANCH] $AI_MSG\"; \
+    }; f"
+
+    # ブランチ・タグ確認
+    ba = branch -a            # ローカル・リモート全ブランチ表示
+    br = branch -r            # リモート全ブランチ表示
+    bd = branch -D            # 強制的にローカルブランチを削除
+    bv = branch -vv           # 詳細付きブランチ表示
+    ta = "!f() { git tag && git ls-remote --tags origin | awk '/^(.+)$/ {print $2}' ; }; f" # リモート含めた全タグ表示
+    tr = "!f() { git ls-remote --tags origin | awk '/^(.+)$/ {print $2}' ; }; f" # リモート全タグ表示
+
+    # ログ・履歴確認（フォーマット指定）
+    ls = log --stat --oneline  # 変更ファイル統計付きの1行ログ
+    lp = log -p                # 差分（パッチ）付きログ
+    ll = log --all --graph --date=iso --pretty=format:'%Cgreen%h %ad%x08%x08%x08%x08%x08%x08%x08%x08%x08 %Cblue%cn %Cred%d %Creset%s' # グラフ付き詳細ログ
+    lu = "!f() { git log --all --stat --author=$1 ;}; f"  # 作成者でログを検索
+    lf = "!f() { git log --all --follow -p -- $1 ;}; f"   # ファイル名でログを検索
+    ranking-all = shortlog -sn --no-merges # 全期間のコミット数ランキング
+    ranking = shortlog -sn --no-merges --after='date +%Y/%m/01' --before='date +%Y/%m/%d' # 今月のランキング
+
+    # 差分比較（diff）
+    di = diff
+    dn = diff --name-only      # 差分があるファイル名のみ表示
+    d1 = diff HEAD~            # 1つ前のコミットと比較（d2, d3...も同様）
+    d2 = diff HEAD~~
+    d3 = diff HEAD~~~
+    d4 = diff HEAD~~~~
+    d5 = diff HEAD~~~~~
+
+    # 変更の取り消し・修正
+    r1 = rebase -i HEAD~       # 1つ前のコミットをまとめて修正・削除・分割（r2, r3...も同様）
+    r2 = rebase -i HEAD~~
+    r3 = rebase -i HEAD~~~
+    r4 = rebase -i HEAD~~~~
+    r5 = rebase -i HEAD~~~~~
+
+    # 変更があったファイルをまとめてVimで開く
+    edit = "!f() { git status -s | cut -b 4- | grep -v '\\/$' | uniq ; }; vi `f`"
+    # コンフリクトが発生しているファイルのみをVimで開く
+    edit-unmerged = "!f() { git ls-files --unmerged | cut -f2 | sort -u ; }; vi `f`"
+    # コンフリクトが発生しているファイルをClaudeCodeで修正させる
+    resolve-conflict = "!f() { files=$(git diff --name-only --diff-filter=U); if [ -n \"$files\" ]; then echo \"以下のコンフリクトをClaudeで解消します（コード変更のみ）:\"; echo \"$files\"; claude --allowedTools Edit,Write -p \"以下のファイルのGitコンフリクトを解消してください。コンフリクトマーカーの意味：<<<<<<< HEAD=現在のブランチの変更、||||||| =共通の祖先（マージベース）、=======から>>>>>>>=取り込むブランチの変更。祖先との差分からそれぞれのブランチが何を意図して変更したかを理解し、どちらか一方を捨てるのではなく両方の変更を統合してください。ファイル間で関連する変更がある場合は整合性を保ってください。コンフリクトマーカーを除去し、統合した最終コードのみを残してください。git addなどのGit操作は行わないでください。対象ファイル:\n$files\"; else echo \"コンフリクトしているファイルはありません。\"; fi }; f"
+
+    # アーカイブ作成（納品用などに指定ブランチ間の差分ファイルのみをZIP化）
+    # 使い方: git archive-diff <比較元> <比較先(省略可)> <出力先(省略可)>
+    archive-diff = "!f() { \
+        local from=$1 to=${2:-HEAD} ts=$(date +%m%d%H%M); \
+        [ -z \"$from\" ] && { echo \"usage: git archive-diff <from>\"; return 1; }; \
+        local work=\"tmp_$ts\"; \
+        mkdir -p \"$work/contents\"; \
+        git diff --name-only \"$from\" \"$to\" --diff-filter=ACMR | xargs -I{} cp --parents \"{}\" \"$work/contents/\" 2>/dev/null; \
+        git diff --name-only \"$from\" \"$to\" --diff-filter=D > \"$work/deleted.txt\"; \
+        [ -f ~/dotfiles/scripts/deploy.sh ] && cp ~/dotfiles/scripts/deploy.sh \"$work/\" && chmod +x \"$work/deploy.sh\"; \
+        (cd \"$work\" && zip -rq \"../archive_$ts.zip\" .); \
+        rm -rf \"$work\"; \
+        echo \"✅ archive_$ts.zip\"; \
+    }; f"
+
+[secrets]
+    # git-secretsの設定：AWSの鍵などの機密情報がコミットされるのを防ぐ
+    providers = git secrets --aws-provider
+    patterns = (A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}
+    patterns = (\"|')?(AWS|aws|Aws)?_?(SECRET|secret|Secret)?_?(ACCESS|access|Access)?_?(KEY|key|Key)(\"|')?\\s*(:|=>|=)\\s*(\"|')?[A-Za-z0-9/\\+=]{40}(\"|')?
+    patterns = (\"|')?(AWS|aws|Aws)?_?(ACCOUNT|account|Account)_?(ID|id|Id)?(\"|')?\\s*(:|=>|=)\\s*(\"|')?[0-9]{4}\\-?[0-9]{4}\\-?[0-9]{4}(\"|')?
+    allowed = AKIAIOSFODNN7EXAMPLE # サンプルアクセスキー
+    allowed = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY # サンプルシークレットキー
+[filter "lfs"]
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+[lfs]
+	pushalways = true

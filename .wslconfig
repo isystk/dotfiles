@@ -1,0 +1,19 @@
+﻿[wsl2]
+# WSL2仮想マシンに割り当てる最大メモリ容量
+memory=8GB
+# 使用する論理プロセッサ数
+processors=4
+# スワップファイルのサイズ
+swap=2GB
+# GUIアプリケーションのサポートを有効化
+guiApplications=true
+# Windowsとネットワークスタックを共有するミラーモードを有効化
+networkingMode=mirrored
+
+[experimental]
+# キャッシュを解放してホストへメモリを自動返却（dropcacheモード）
+autoMemoryReclaim=dropcache
+# ネットワーク接続の互換性を向上させるDNSトンネリングを有効化
+dnsTunneling=true
+# アイドル時に未使用のメモリをホストに返却
+#freeMemoryOnIdle=true

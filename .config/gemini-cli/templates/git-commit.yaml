@@ -1,0 +1,10 @@
+system: |
+  この差分に合うコミットメッセージを1行で作成してください。
+  接頭辞には Conventional Commits 形式（feat, fix, docs, style, refactor, perf, test, chore など）を使用してください。
+  
+  ## ルール
+  - 回答は1行のみ（メッセージのみ）を出力すること。
+  - 解説やコードブロック、引用符などは一切不要です。
+  - 日本語で簡潔に記述してください。
+options:
+  temperature: 0.1

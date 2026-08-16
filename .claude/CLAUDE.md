@@ -1,0 +1,84 @@
+# Global Claude Code Settings
+
+このファイルは全プロジェクトに適用されるグローバル設定です。
+言語固有のルールは `~/.claude/rules/` ディレクトリに配置しています。
+
+## Language
+
+ユーザーへの応答・説明・コードコメントは日本語で記述する。
+技術用語・ライブラリ名・コード識別子は原文のままで構わない。
+
+## Rules Directory
+
+対象技術に対応する `~/.claude/rules/` 配下のルールを参照し、それに従って対応すること。
+
+プログラムのコーディングに関するルール（コメント方針・命名規則・アーキテクチャ等）は、このファイルではなく `rules` 配下で管理する。
+
+```
+~/.claude/rules/
+├── php.md            # PHP/Laravel向けルール
+├── javascript.md     # JavaScript/TypeScript・React向けルール
+├── python.md         # Python向けルール
+├── docker.md         # Docker/docker-compose運用ルール
+├── github-actions.md # CI設計ルール
+├── architecture.md   # レイヤー分離の一般原則
+├── coding-style.md   # 命名・コメント方針
+├── testing.md        # テスト方針
+├── security.md       # セキュリティ方針
+├── git.md            # Git運用ルール
+├── database.md       # DB設計・クエリ性能ルール
+├── ui-development.md # UI実装ルール
+├── bug-fixing.md     # バグ修正方針
+└── naming-romaji.md  # 日本語業務用語の命名規則
+```
+
+## Communication Style
+
+### 質問は1つずつ
+
+確認事項は AskUserQuestion でまとめず、1つずつ聞いてください。
+複雑な要件を詰める必要がある場合は、`grill-me` スキルを使ってください。
+
+### 簡潔な応答
+
+- 冗長な説明を避け、要点を簡潔に伝える
+- コード例は必要最小限に
+- 絵文字は使用しない（明示的に要求された場合を除く）
+- 作業完了後の長文サマリーは避け、変更点を簡潔に報告する
+
+## Editing Policy
+
+- 依頼された範囲外のコード・ファイルは変更しない
+- 既存ファイルへの編集を優先し、新規ファイル・ドキュメント（README等）は必要な場合のみ作成する
+
+## Assumptions
+
+- 存在しないAPI・ライブラリ・設定を仮定しない
+- 広範囲の変更、DBスキーマ変更、API仕様変更、ディレクトリ構成の変更は事前に確認する
+
+## Project-Specific Settings
+
+プロジェクト固有の設定は各プロジェクトの以下に配置：
+
+- `.claude/CLAUDE.md` - プロジェクト共通設定（Git管理）
+- `.claude/rules/*.md` - プロジェクト固有ルール（Git管理）
+- `CLAUDE.local.md` - 個人用設定（Git管理外）
+
+## Session Handover
+
+セッション間のコンテキスト引き継ぎには `handover`（記録） / `takeover`（受け取り）スキルを使う（参考: https://zenn.dev/ushironoko/articles/6b905435f3afe8 ）。
+
+- 引き継ぎファイルは `{プロジェクトルート}/HANDOVER.md` に単一ファイルとして上書き保存する（Git管理対象外。`.gitignore` に追加すること）
+- frontmatterで `created` / `read` / `session_id` を管理する
+- **セッション開始時（takeover）**: `SessionStart` フック（`~/.claude/hooks/takeover.sh`）が未読の `HANDOVER.md` を検出したら「takeoverスキルで確認するか」をユーザーへ確認するよう促す（本文は自動で読まない）。ユーザーが承諾したら `takeover` スキルで読み込み・要約提示・`read: true` への更新を行う
+- **セッション終了時**: ユーザーが `/handover` と入力したら `handover` スキルを実行する。加えて、以下のいずれかを検知した場合はClaude側から「引き継ぎファイルを作成しますか？」と自発的に提案する
+  - 大きな機能・タスクが完了した時
+  - ユーザーが会話終了を示唆した時（「今日はここまで」「また今度」等）
+  - コンテキストが長時間・大量のやり取りに及んだ時
+  - `UserPromptSubmit` フック（`~/.claude/hooks/context-check.sh`）がtranscriptサイズからコンテキスト増大を検知した時（セッションごとに一度のみ通知）
+
+## External Research
+
+- 通常の調べもの（ライブラリ/API構文の確認、単一事実の確認、最新ドキュメント参照）は `context7` と `WebSearch`/`WebFetch` を優先する。認証不要で速い。
+- **複数ソースを1つの成果物に統合する調査**（未知の外部システム/プロトコルを複数ドキュメント横断で調べる、競合ツール・競合サービスのリサーチ、大量ドキュメント群の要約など）が必要そうなタスクに気づいたら、`notebooklm-mcp-ops` スキルの利用を積極的にユーザーへ提案する。単一事実の確認には提案しない。NotebookLM側で検索・統合をサーバーサイドで行うため、生の検索結果ではなく統合済みの回答だけがコンテキストに乗り、トークン節約になる。
+- 提案時は、何を調査するか・fast（約30秒）/deep（約5分）どちらを使うかを添えて聞く。無断で呼び出さず、必ずユーザーの明示的な許可を待ってから実行する。nlmが未認証、またはユーザーが断った場合は、ログインフローでコーディング作業をブロックせず `WebSearch`/`WebFetch` にフォールバックする。

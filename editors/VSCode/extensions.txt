@@ -1,0 +1,13 @@
+anthropic.claude-code
+chouzz.vscode-better-align
+cweijan.dbclient-jdbc
+cweijan.vscode-database-client2
+eamodio.gitlens
+github.copilot-chat
+janisdd.vscode-edit-csv
+marp-team.marp-vscode
+mosapride.zenkaku
+ms-ceintl.vscode-language-pack-ja
+vscodevim.vim
+takashi-uchida.compare-diff-with-clipborad
+xyz.local-history

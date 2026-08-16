@@ -1,0 +1,9 @@
+[user]
+    name = your-name
+    email = your-email@example.com
+
+[credential]
+    # OSに合わせて選択してください（未設定の場合、資格情報は保存されません）
+    # helper = osxkeychain (Mac)
+    # helper = manager (Windows)
+    # helper = cache (Linux/WSL)

@@ -1,0 +1,149 @@
+" =============================================================================
+" PHPStorm / IdeaVim 設定ガイド
+" =============================================================================
+
+" --- 基本設定 (検索・画面・クリップボード) ---
+set incsearch           " 文字入力中から検索を開始する
+set hlsearch            " 検索結果をハイライト表示する
+set ignorecase          " 検索時に大文字小文字を区別しない
+set smartcase           " 検索語に大文字が含まれる場合だけ、大文字小文字を区別する
+set scrolloff=10        " カーソル移動時、常に上下に10行分の余白を表示する
+set clipboard=unnamedplus " OSのクリップボードとVimのレジスタを共有する
+
+" --- 見た目・操作 ---
+set showmatch           " 閉じ括弧を入力した際、対応する開き括弧を一瞬強調する
+" % キーでジャンプする対象に <>（タグなど）を含める
+set matchpairs=(:),{:},[:],<:>
+
+" --- タブ・インデント (1タブ=半角スペース2つ) ---
+set expandtab           " Tabキー押下時にスペースを入力する
+set tabstop=2           " 既存のタブ文字をスペース2つ分として表示する
+set shiftwidth=2        " 自動インデントや '>' コマンドで動く幅を2にする
+set softtabstop=2       " Tabキー入力時に挿入されるスペースの数を2にする
+set autoindent          " 改行時に前の行のインデントを継承する
+set smartindent         " PHP等の構文に合わせて自動でインデントを増減する
+
+" --- マッピング設定 ---
+" Leaderキーを Space に設定（他のコマンドの起点になります）
+let mapleader = "\<Space>"
+
+" [Esc] を2回連続で押す：検索結果のハイライト（黄色い色）を消す
+nnoremap <Esc><Esc> :nohlsearch<CR>
+
+" --- 移動の最適化 ---
+" j / k：長い行が折り返されていても、見た目通り1行上下に移動する
+nnoremap j gj
+nnoremap k gk
+" [Tab]：対応する括弧 ( ) { } [ ] の間をジャンプする
+nnoremap <Tab> %
+" ビジュアルモードで [Tab]：選択範囲を右にズラす（選択は維持）
+vnoremap <Tab> >gv
+" ビジュアルモードで [Shift]+[Tab]：選択範囲を左にズラす（選択は維持）
+vnoremap <S-Tab> <gv
+
+" --- インサートモード（入力中）での移動 (Emacs風) ---
+" [Ctrl]+[a]：行頭へ / [Ctrl]+[e]：行末へ
+inoremap <C-a> <Home>
+inoremap <C-e> <End>
+" [Ctrl]+[h][j][k][l]：上下左右にカーソル移動
+inoremap <C-h> <Left>
+inoremap <C-j> <Down>
+inoremap <C-k> <Up>
+inoremap <C-l> <Right>
+
+" --- クリップボード・ペーストの改善 ---
+" 選択範囲に貼り付けても、元々コピーしていた内容を保持し続ける
+xnoremap p "_dP
+
+" --- Windows風操作 (直感的なショートカット) ---
+" [Ctrl]+[a]：全選択
+nnoremap <C-a> ggVG
+" [Ctrl]+[z]：戻る (Undo)
+noremap <C-z> u
+inoremap <C-z> <C-o>u
+" [Ctrl]+[y]：やり直し (Redo)
+noremap <C-y> <C-r>
+inoremap <C-y> <C-o><C-r>
+" ビジュアルモードで [Ctrl]+[x]：切り取り
+vnoremap <C-X> x
+" ビジュアルモードで [Ctrl]+[c]：コピー
+vnoremap <C-C> y
+" [Ctrl]+[v]：貼り付け
+vnoremap <C-v> pgvy
+inoremap <C-v> <C-r>+
+
+" --- PHPStorm (IDE) 独自機能の呼び出し ---
+
+" --- 検索・置換・最近のファイル一覧 ---
+" IDEの検索画面を呼び出す
+nnoremap <C-f> :action Find<CR>
+vnoremap <C-f> :action Find<CR>
+" IDEの置換画面を呼び出す
+nnoremap <C-r> :action Replace<CR>
+vnoremap <C-r> :action Replace<CR>
+" IDEの最近のファイル一覧を呼び出す
+nnoremap <C-e> :action RecentFiles<CR>
+vnoremap <C-e> :action RecentFiles<CR>
+
+" --- コードナビゲーション ---
+" [Space]+[d]：定義へ (Declaration)
+nnoremap <Leader>d :action GotoDeclaration<CR>
+" [Space]+[i]：実装へ (Implementation)
+nnoremap <Leader>i :action GotoImplementation<CR>
+" [Space]+[u]：使用箇所をポップアップ表示 (Usages)
+nnoremap <Leader>u :action ShowUsages<CR>
+" [Space]+[r]：使用箇所を一覧表示 (References / Find Usages)
+nnoremap <Leader>r :action FindUsages<CR>
+" [Space]+[v]：ビューの使用箇所 (View Use / Laravel Idea)
+nnoremap <Leader>v :action com.laravel_idea.plugin.GoToViewUsagesAction<CR>
+
+" --- 編集・リファクタリング ---
+" [Space]+[n]：名前の変更 (Rename)
+nnoremap <Leader>n :action RenameElement<CR>
+" [Space]+[a]：クイックフィックス (Code Action / Alt+Enter)
+nnoremap <Leader>a :action ShowIntentionActions<CR>
+" [Space]+[f]：コード整形 (Reformat Code / Layout)
+nnoremap <Leader>f :action ReformatCode<CR>
+" [Space]+[c]：ケースを切り替える (StringManipulation)
+vnoremap <Leader>c :action StringManipulation.SwitchStyleAction<CR>gv
+
+" --- Git操作 ---
+" [Space]+[j]：次の変更箇所へ (Next Change)
+nnoremap <Leader>j :action VcsShowNextChangeMarker<CR>
+" [Space]+[k]：前の変更箇所へ (Prev Change)
+nnoremap <Leader>k :action VcsShowPrevChangeMarker<CR>
+" [Space]+[g]：カーソル位置のGit Blame情報を表示 (GitToolBox Blame Details)
+nnoremap <Leader>g :action GitToolBox.BlameDetails<CR>
+
+" --- ウィンドウ・UI操作 ---
+" [Space]+[s]：構造を表示 (Structure / メソッド一覧)
+nnoremap <Leader>s :action ActivateStructureToolWindow<CR>
+" [Space]+[e]：左側のプロジェクトツリーを開く
+nnoremap <Leader>e :action ActivateProjectToolWindow<CR>
+" [Space]+[z]：すべてのサイドバー/ツールウィンドウを閉じてエディタを最大化
+nnoremap <Leader>z :action ToggleDistractionFreeMode<CR>
+" [Space]+[b]でプロジェクトツリー上の現在のファイルを表示
+nnoremap <Leader>b :action SelectInProjectView<CR>
+" [Space]+[q] で自分専用のミニメニューを表示
+nnoremap <Leader>q :action QuickList.MyQuickList<CR>
+vnoremap <Leader>q :action QuickList.MyQuickList<CR>
+
+" --- 入力補完 (Insertモード) ---
+" Ctrl+N/P でIDE標準の補完ウィンドウを出す
+inoremap <C-n> <Esc>:action CodeCompletion<CR>
+inoremap <C-p> <Esc>:action CodeCompletion<CR>
+
+" --- .ideavimrc の編集と反映 ---
+" [Space]+ev で設定ファイルを開き、[Space]+sv で反映（Source）
+nnoremap <Leader>ev :e ~/.ideavimrc<CR>
+nnoremap <Leader>sv :action ReloadVimrc<CR>
+
+" --- 便利なプラグイン機能 (IdeaVim標準搭載) ---
+" cs"'：外側の " を ' に変更 / ds"：外側の " を削除
+set surround
+
+" caa：関数の引数(Argument)を削除 / daa で関数の引数を削除
+set argtextobj
+
+" easymotion：画面内の特定の文字へ爆速でジャンプ
+set easymotion

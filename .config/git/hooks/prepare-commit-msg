@@ -1,0 +1,21 @@
+#!/bin/bash
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+[ -z "$COMMIT_MSG_FILE" ] && exit 0
+
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+[ -z "$BRANCH_NAME" ] && exit 0
+[ -n "$COMMIT_SOURCE" ] && exit 0
+
+# "feat/ABC" のようなブランチから "ABC" を抽出
+BRANCH_NAME=${BRANCH_NAME##*/}
+
+if ! grep -qF "#[$BRANCH_NAME]" "$COMMIT_MSG_FILE"; then
+    TEMP_FILE=$(mktemp)
+    # 先頭に # [ブランチ名] を挿入
+    # 既存のメッセージ（catの結果）を結合
+    echo "#[$BRANCH_NAME] $(cat "$COMMIT_MSG_FILE")" > "$TEMP_FILE"
+    mv "$TEMP_FILE" "$COMMIT_MSG_FILE"
+fi

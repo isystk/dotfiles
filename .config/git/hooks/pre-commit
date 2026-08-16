@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# メールアドレスのチェック
+CURRENT_EMAIL=$(git config user.email)
+if [ -n "$ALLOWED_EMAIL" ]; then
+    if [ "$CURRENT_EMAIL" != "$ALLOWED_EMAIL" ]; then
+        echo "❌ Error: 許可されていないメールアドレスです。"
+        echo "REQUIRED (env)    => $ALLOWED_EMAIL"
+        echo "CURRENT (git)     => $CURRENT_EMAIL"
+        exit 1
+    fi
+fi
+
+# 1. git-secrets を実行
+if command -v git-secrets >/dev/null 2>&1; then
+    git secrets --pre_commit_hook -- "$@"
+    cmdstatus=$?
+    if [ $cmdstatus -ne 0 ]; then
+        exit $cmdstatus
+    fi
+else
+    echo "⚠️  Warning: git-secrets が未インストールのため、機密情報チェックをスキップしました。"
+    echo "   brew install git-secrets での導入を推奨します。"
+fi
+
+# 2. localリポジトリのgit-hooksも実行されるようにする
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+HOOK_NAME=$(basename "$0")
+LOCAL_HOOK="${GIT_ROOT}/.git/hooks/${HOOK_NAME}"
+
+# グローバル自身を無限ループで呼び出さないよう、パスが異なるかチェック
+# かつ、ローカルフックが存在して実行可能か確認
+if [ -f "$LOCAL_HOOK" ] && [ -x "$LOCAL_HOOK" ]; then
+    echo "executing local hook: ${LOCAL_HOOK}"
+    # 新しいプロセスとして実行（グローバル側の変数汚染を防ぐため）
+    "$LOCAL_HOOK" "$@"
+    exit_status=$?
+    if [ $exit_status -ne 0 ]; then
+        exit $exit_status
+    fi
+fi
