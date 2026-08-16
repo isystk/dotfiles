@@ -1,36 +1,12 @@
 # Global Claude Code Settings
 
 このファイルは全プロジェクトに適用されるグローバル設定です。
-言語固有のルールは `~/.claude/rules/` ディレクトリに配置しています。
+言語固有のルールは各リポジトリの `.claude/rules/` ディレクトリに配置します。
 
 ## Language
 
 ユーザーへの応答・説明・コードコメントは日本語で記述する。
 技術用語・ライブラリ名・コード識別子は原文のままで構わない。
-
-## Rules Directory
-
-対象技術に対応する `~/.claude/rules/` 配下のルールを参照し、それに従って対応すること。
-
-プログラムのコーディングに関するルール（コメント方針・命名規則・アーキテクチャ等）は、このファイルではなく `rules` 配下で管理する。
-
-```
-~/.claude/rules/
-├── php.md            # PHP/Laravel向けルール
-├── javascript.md     # JavaScript/TypeScript・React向けルール
-├── python.md         # Python向けルール
-├── docker.md         # Docker/docker-compose運用ルール
-├── github-actions.md # CI設計ルール
-├── architecture.md   # レイヤー分離の一般原則
-├── coding-style.md   # 命名・コメント方針
-├── testing.md        # テスト方針
-├── security.md       # セキュリティ方針
-├── git.md            # Git運用ルール
-├── database.md       # DB設計・クエリ性能ルール
-├── ui-development.md # UI実装ルール
-├── bug-fixing.md     # バグ修正方針
-└── naming-romaji.md  # 日本語業務用語の命名規則
-```
 
 ## Communication Style
 

@@ -1,7 +1,7 @@
 # Global Gemini Settings
 
 このファイルは全プロジェクトに適用されるグローバル設定です。
-言語固有のルールは `~/.gemini/rules/` ディレクトリに配置しています。
+言語固有のルールは各リポジトリの `.agent/rules/` ディレクトリに配置します。
 
 ## Language
 
@@ -161,16 +161,6 @@ Tier 1 ファイルに何らかの書き込みを行ったら **即座に**：
 - Phase D（削減）: 修正ファイル再読 → Pruning Heuristics 適用 → 削除/統合/昇格/降格
 
 **次のタスクを高速化しない知識はノイズです。** 加算と同じ頻度で減算してナレッジベースを育ててください。
-
-## Rules Directory
-
-言語・フレームワーク固有のルールは以下に配置：
-
-```
-~/.gemini/rules/
-├── laravel.md # PHP/Laravel向けルール
-└── react.md   # React向けルール
-```
 
 ## Project-Specific Settings
 

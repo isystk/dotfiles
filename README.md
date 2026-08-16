@@ -100,7 +100,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 ```text
 .
 ├── .bashrc / .bash_profile # Bash設定 (Zshへの切り替え促進)
-├── .claude               # ClaudeCode設定
+├── .claude               # ClaudeCode設定（rule-templates/ = プロジェクトへコピーして使うルールテンプレート）
 ├── .codex                # Codex CLI設定 (AGENTS.md, config.toml)
 ├── .config/              # ツール別設定
 │   ├── chatgpt-cli/      # ChatGPT CLI設定
@@ -144,6 +144,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 
 ## ⚠️ 注意事項
 
+* **AIエージェント用ルールファイルの運用**: `.claude/rule-templates/` に、Claude Code / Gemini CLI / Codex CLI 共通で使う言語・フレームワーク別ルール（PHP、JavaScript、Docker等）のテンプレートを配置しています。以前は `~/.claude/rules` としてシンボリックリンクで全プロジェクトへグローバル公開していましたが、クラウド実行環境（`~/.claude` が存在しない）でルールが参照できない問題があったため廃止しました。新規プロジェクトでルールを使う場合は、このテンプレートを各リポジトリの `.claude/rules/`（Gemini CLIは `.agent/rules/`）へ `cp` し、プロジェクト固有ルールとしてGit管理してください。
 * **秘匿情報の管理**: APIキー等は `.gitignore` 対象の `.zshrc.local` や `.setenv.local` を各自作成して記述してください。Git認証情報は `.gitconfig.local`（`.gitconfig.local.example` を複製）でOS別の `credential.helper`（`osxkeychain` / `manager` / `cache` 等）を設定してください。
 * **変更後の事前チェック (重要)**: 本リポジトリの設定やスクリプトを変更・更新した後は、Claude Code のスキル **`check-privacy-and-secrets`** を実行（例: 「プライベート情報や特定プロジェクトの情報が含まれていないかチェックして」と指示）し、APIキー・個人情報・個別プロジェクト依存のコードが誤って混入していないか事前チェックを行ってください。
 * **改行コード**: `.gitattributes` により、Windows環境での編集時も `LF` が強制されます。

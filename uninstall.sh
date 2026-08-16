@@ -66,19 +66,16 @@ safe_unlink "$HOME/.claude/settings.json"
 safe_unlink "$HOME/.claude/statusline.sh"
 safe_unlink "$HOME/.claude/agents"
 safe_unlink "$HOME/.claude/skills"
-safe_unlink "$HOME/.claude/rules"
 
 # Gemini / Antigravity
 safe_unlink "$HOME/.gemini/GEMINI.md"
 safe_unlink "$HOME/.gemini/settings.json"
-safe_unlink "$HOME/.gemini/rules"
 safe_unlink "$HOME/.gemini/skills"
 
 # Codex
 safe_unlink "$HOME/.codex/AGENTS.md"
 safe_unlink "$HOME/.codex/config.toml"
 safe_unlink "$HOME/.codexignore"
-safe_unlink "$HOME/.codex/rules"
 safe_unlink "$HOME/.codex/skills"
 
 if [ -n "$IS_MAC" ]; then
