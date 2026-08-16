@@ -64,14 +64,14 @@ cleanup.bat
 ### 🍎 Mac
 
 ```bash
-brew install mise gh fzy ccat
+brew install mise gh fzy ccat git-lfs
 
 ```
 
 ### 🐧 Linux (WSL / Ubuntu)
 
 ```bash
-sudo apt update && sudo apt install -y zsh gh fzy
+sudo apt update && sudo apt install -y zsh gh fzy git-lfs
 
 # Neovim (AppImage)
 curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
@@ -79,6 +79,8 @@ chmod u+x nvim.appimage
 sudo mv nvim.appimage /usr/local/bin/nvim
 
 ```
+
+> **⚠️ git-lfs は必須**: `.gitconfig` の `core.hooksPath` により、ホーム配下で行う全ての `git clone`（Zinit / Neovimプラグインのインストール含む）で `post-checkout` フックが実行されます。`git-lfs` が未インストールだとこのフックが失敗し、`git clone` 自体がエラー終了してプラグインが導入されません。**必ず `install.sh` 実行前にインストールしてください。**
 
 ---
 
@@ -89,6 +91,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 | **Mise** | 言語ランタイム管理 | `mise install` |
 | **GitHub CLI** | GitHub操作 | `gh auth login` |
 | **git-secrets** | 認証情報の露出防止 | `git secrets --register-aws --global` |
+| **tree-sitter CLI** | Neovim (nvim-treesitter) のパーサービルドに必要 | `npm install -g tree-sitter-cli`（`mise install` 後、`node`/`npm` が使える状態で実行） |
 
 ---
 
