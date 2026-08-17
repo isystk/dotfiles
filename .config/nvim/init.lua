@@ -108,6 +108,7 @@ local function send_text_to_terminal(text)
   if job_id then
     vim.fn.chansend(job_id, text)
   end
+  vim.api.nvim_set_current_win(term_win) -- 送信先パネルへカーソル移動
 end
 
 -- 選択範囲をZshターミナルパネルへ送信。"zyでvisualモードを抜けてから
@@ -149,10 +150,15 @@ vim.api.nvim_create_autocmd('VimResized', {
   end,
 })
 
--- ターミナルウィンドウにカーソル移動した時だけインサートモードにする(離れたらノーマルへ戻す)
+-- ターミナルバッファ内で最下部(プロンプト入力行)にいる時だけインサートモードにする。
+-- 出力結果(スクロールバック領域)をクリック・カーソル移動した場合はノーマルモードのまま維持する
+local function is_terminal_cursor_at_bottom()
+  return vim.api.nvim_win_get_cursor(0)[1] == vim.api.nvim_buf_line_count(0)
+end
+
 vim.api.nvim_create_autocmd('WinEnter', {
   callback = function()
-    if vim.bo.buftype == 'terminal' then
+    if vim.bo.buftype == 'terminal' and is_terminal_cursor_at_bottom() then
       vim.cmd('startinsert')
     end
   end,
@@ -165,28 +171,109 @@ vim.api.nvim_create_autocmd('WinLeave', {
   end,
 })
 
--- ターミナルバッファ内でクリック等によりカーソル移動しノーマルモードへ落ちた場合、即座にインサートモードへ戻す
+-- ターミナルバッファ内でクリック等によりカーソル移動しノーマルモードへ落ちた場合、
+-- 最下部(プロンプト入力行)ならインサートモードへ戻し、出力結果部分ならノーマルモードのまま維持する
 -- (CursorMovedはノーマルモード中のカーソル移動でのみ発火するため、クリック直後のノーマル化を確実に検知できる。
 -- <LeftMouse>への直接マッピングはクリック1回目がNeovim内部処理として消費され発火しなかった)
 vim.api.nvim_create_autocmd('CursorMoved', {
   callback = function()
     if vim.bo.buftype == 'terminal' then
-      vim.cmd('startinsert')
+      if is_terminal_cursor_at_bottom() then
+        vim.cmd('startinsert')
+      else
+        vim.cmd('stopinsert')
+      end
     end
   end,
 })
 
+-- 現在セッション内で開いたファイルのMRU(直近アクセス順)を独自管理する。
+-- vim.v.oldfilesはshadaファイル由来の静的スナップショットのため、
+-- セッション中の実際の閲覧順(直前に触ったファイルが先頭)とは必ずしも一致しない対策。
+local session_mru = {} -- 絶対パスの配列。先頭が最新
+vim.api.nvim_create_autocmd('BufEnter', {
+  callback = function()
+    local bufname = vim.api.nvim_buf_get_name(0)
+    if bufname == '' or vim.bo.buftype ~= '' or vim.fn.filereadable(bufname) == 0 then
+      return
+    end
+    local abs_path = vim.fn.fnamemodify(bufname, ':p')
+    for i, p in ipairs(session_mru) do
+      if p == abs_path then
+        table.remove(session_mru, i)
+        break
+      end
+    end
+    table.insert(session_mru, 1, abs_path)
+  end,
+})
+
 -- Windowsパス(.config\nvim\init.lua等)の"\"がfuzzy matchを阻害するため、
--- matcherへ渡す直前のqueryで"/"へ変換する
+-- matcherへ渡す直前のqueryで"/"へ変換する。
+-- 初期表示は最近開いたファイル(session_mru優先 + oldfilesで補完)、入力すると全ファイル検索へ動的切替する。
 local function telescope_find_files_win_path()
-  require('telescope.builtin').find_files({
-    hidden = true, -- .envなどドットファイルも検索対象に含める
-    no_ignore = true, -- .gitignore対象(node_modules等)も検索対象に含める
-    file_ignore_patterns = { '%.git/', '%.history/', 'node_modules/', 'vendor/' },
+  local pickers = require('telescope.pickers')
+  local finders = require('telescope.finders')
+  local conf = require('telescope.config').values
+
+  local find_command = {
+    'rg', '--files', '--hidden', '--no-ignore', -- .envなどドットファイル・.gitignore対象も検索対象に含める
+    '--glob', '!.git/*', '--glob', '!.history/*', '--glob', '!node_modules/*', '--glob', '!vendor/*',
+  }
+
+  local function recent_files()
+    local results = {}
+    local seen = {}
+
+    -- 今セッションで実際に開いた順(直近優先)。session_mru自体が既にMRU順のため未ソート
+    for _, abs_path in ipairs(session_mru) do
+      if vim.fn.filereadable(abs_path) == 1 then
+        local rel = vim.fn.fnamemodify(abs_path, ':.')
+        if not seen[rel] then
+          seen[rel] = true
+          table.insert(results, rel)
+        end
+      end
+    end
+
+    -- 今セッションで未アクセスの過去履歴をshadaのoldfilesから補完(重複はパス表記ゆれ込みでdedup)
+    for _, f in ipairs(vim.v.oldfiles) do
+      if vim.fn.filereadable(f) == 1 then
+        local rel = vim.fn.fnamemodify(f, ':.')
+        if not seen[rel] then
+          seen[rel] = true
+          table.insert(results, rel)
+        end
+      end
+    end
+
+    return results
+  end
+
+  -- 全ファイル一覧は初回入力時のみrg実行しキャッシュ(入力毎の再実行を避ける)
+  local all_files_cache = nil
+
+  pickers.new({}, {
+    prompt_title = 'ファイル検索',
+    sorting_strategy = 'ascending', -- 直近ファイルを画面最上部に表示(デフォルトのdescendingだと最下部に来るため)
+    finder = finders.new_dynamic({
+      entry_maker = function(entry)
+        return { value = entry, display = entry, ordinal = entry }
+      end,
+      fn = function(prompt)
+        if not prompt or prompt == '' then
+          return recent_files()
+        end
+        all_files_cache = all_files_cache or vim.fn.systemlist(find_command)
+        return all_files_cache
+      end,
+    }),
+    sorter = conf.file_sorter({}),
+    previewer = conf.file_previewer({}),
     on_input_filter_cb = function(query)
       return { prompt = query:gsub('\\', '/') }
     end,
-  })
+  }):find()
 end
 
 -- ==========================================================
@@ -578,7 +665,14 @@ require('lazy').setup({
       { '<leader>ac', '<cmd>ClaudeCode<cr>', desc = 'Toggle Claude' },
       { '<leader>af', '<cmd>ClaudeCodeFocus<cr>', desc = 'Focus Claude' },
       { '<leader>as', '<cmd>ClaudeCodeSend<cr>', mode = 'v', desc = 'Send to Claude' },
-      { '<leader>as', '<cmd>ClaudeCodeTreeAdd<cr>', ft = { 'neo-tree' }, desc = 'Add file to Claude context' },
+      {
+        '<leader>as',
+        function()
+          vim.cmd('ClaudeCodeTreeAdd')
+          vim.cmd('ClaudeCodeFocus') -- 送信先パネル(ClaudeCode)へカーソル移動
+        end,
+        ft = { 'neo-tree' }, desc = 'Add file to Claude context',
+      },
       { '<leader>aa', '<cmd>ClaudeCodeDiffAccept<cr>', desc = 'Accept diff' },
       { '<leader>ad', '<cmd>ClaudeCodeDiffDeny<cr>', desc = 'Deny diff' },
     },

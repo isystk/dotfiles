@@ -1,6 +1,6 @@
 ## 完全コマンドリファレンス
 
-### 1. エディタ操作 (Neovim & IdeaVim 共通)
+### 1. エディタ操作 (Neovim)
 
 標準的なVim操作をベースにしつつ、Windowsのショートカットや挿入モードでの利便性を高める設定。
 
@@ -36,31 +36,41 @@
 
 ---
 
-### 2. IdeaVim 特有・IDE 連携操作
+### 2. Neovim プラグイン操作
 
-PHPStorm の強力な解析機能や Git 連携を Vim キーで呼び出すための設定。
+`init.lua` に設定した各プラグイン (Laravel.nvim / neo-tree.nvim / claudecode.nvim / Telescope / Trouble / LSP) のキーマップ。
 
-| 分類           | キー操作              | 内容 / 挙動                                   |
-|--------------|-------------------|-------------------------------------------|
-| **コードジャンプ**  | `Space + d` / `i` | **定義元**へジャンプ / **実装先**（インターフェースの実装等）へジャンプ |
-|              | `Space + u` / `r` | **使用箇所**をクイック表示 / 使用箇所を検索パネルで一覧表示         |
-|              | `Space + v`       | **Laravel ビュー**の使用箇所を表示 (Laravel Idea)    |
-| **リファクタ**    | `Space + n`       | **変数・クラス名のリネーム** (Name)                   |
-|              | `Space + a`       | **クイックフィックス** (Action / Alt + Enter 同等)   |
-|              | `Space + f`       | **コード自動整形** (Format)                      |
-|              | `Space + c`       | **選択範囲のケースを切り替える** (StringManipulation)   |
-| **IDE画面操作**  | `Space + q`       | クリックリストを開く                                |
-|              | `Space + e` / `s` | プロジェクトツリー(Explorer) / メソッド一覧(Structure)   |
-|              | `Space + z`       | **集中モード(Zen)** の切り替え（一括非表示）               |
-|              | `Space + b`       | プロジェクトツリー上の現在のファイルを表示                     |
-| **git 連携**   | `Space + j` / `k` | Git の変更箇所（差分）へ 次(Next) / 前(Prev)          |
-|              | `Space + g`       | カーソル位置のGit Blame情報を表示                     |
-| 補完           | `Ctrl + n / p`    | 挿入モード中、IDE 標準の補完ウィンドウを表示                  |
-| 引数操作         | `caa` / `daa`     | 関数の引数を削除して入力モードへ / 引数を削除                  |
-| 囲み(Surround) | `cs"'` / `ds"`    | 外側の `"` を `'` に変更 / 外側の `"` を削除           |
-|              | `ysiw"`           | 単語を `"` で囲む                               |
-| 設定管理         | `Space + ev`      | `.ideavimrc` を開いて編集する (Edit)              |
-|              | `Space + sv`      | `.ideavimrc` をリロードして即時反映** (Source)       |
+| 分類            | キー操作                    | 内容 / 挙動                                                |
+|---------------|-------------------------|---------------------------------------------------------|
+| **Laravel**   | `gf`                    | カーソル位置が Laravel のリソース（Controller のビュー名等）なら **Blade ファイルへジャンプ**、それ以外は通常の `gf` |
+|               | `<leader>la`            | Artisan コマンドピッカー                                       |
+|               | `<leader>lr`            | ルート(Routes)ピッカー                                        |
+|               | `<leader>lo`            | 関連ファイル(Related)ピッカー                                    |
+| **neo-tree**  | `<C-n>` / `<leader>e`   | ファイルツリー(neo-tree)の開閉                                   |
+|               | `<leader>ts` (neo-tree内) | カーソル位置ファイルのパスをターミナルへ入力（実行はしない）                           |
+|               | `<leader>as` (neo-tree内) | カーソル位置ファイルを **ClaudeCode パネルへパス入力**（ClaudeCodeTreeAdd） |
+|               | `a` / `A`               | ファイル追加 / ディレクトリ追加                                      |
+|               | `d` / `r`               | 削除 / リネーム                                              |
+|               | `c` / `x` / `p`         | コピー / カット / 貼り付け                                       |
+|               | `y`                     | クリップボードへコピー                                            |
+|               | `R`                     | ツリー更新(Refresh)                                         |
+|               | `?`                     | ヘルプ表示                                                  |
+| **ClaudeCode** | `<leader>ac`            | ClaudeCode パネルの切替                                      |
+|               | `<leader>af`            | ClaudeCode パネルへフォーカス                                   |
+|               | `<leader>as` (visual)   | 選択範囲を ClaudeCode へ送信                                   |
+|               | `<leader>aa` / `<leader>ad` | 差分を承認(Accept) / 却下(Deny)                              |
+| **ターミナル**    | `<leader>tc`            | ターミナル切替                                                |
+|               | `<leader>ts` (visual)   | 選択範囲をターミナルへ送信                                          |
+| **LSP**       | `gd` / `K`              | 定義元へジャンプ / hover 表示                                    |
+|               | `gr`                    | 参照箇所を表示                                                |
+|               | `<leader>rn`            | リネーム                                                   |
+|               | `<leader>ca`            | コードアクション                                               |
+|               | `[d` / `]d`             | 前 / 次の診断へジャンプ                                          |
+| **検索(Telescope)** | `<leader>fg`         | 全文検索                                                   |
+|               | `<leader>fb`            | バッファ一覧                                                 |
+|               | `<leader>fr`            | 最近使ったファイル                                              |
+| **診断(Trouble)** | `<leader>xx`           | 診断一覧                                                   |
+|               | `<leader>xr`            | 参照一覧                                                   |
 
 ---
 
@@ -93,7 +103,7 @@ PHPStorm の強力な解析機能や Git 連携を Vim キーで呼び出すた�
 
 ---
 
-### 4. Shell & OS 操作 (zsh)
+### 3. Shell & OS 操作 (zsh)
 
 `.zshrc` の操作。
 
@@ -112,7 +122,7 @@ PHPStorm の強力な解析機能や Git 連携を Vim キーで呼び出すた�
 
 ---
 
-### 5. 独自スクリプト (run [コマンド])
+### 4. 独自スクリプト (run [コマンド])
 
 AI 連携や GitHub CLI のラッパー機能。
 
