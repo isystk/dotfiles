@@ -92,6 +92,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 | **GitHub CLI** | GitHub操作 | `gh auth login` |
 | **git-secrets** | 認証情報の露出防止 | `git secrets --register-aws --global` |
 | **tree-sitter CLI** | Neovim (nvim-treesitter) のパーサービルドに必要 | `npm install -g tree-sitter-cli`（`mise install` 後、`node`/`npm` が使える状態で実行） |
+| **lazygit** | Neovim (lazygit.nvim, `<leader>g`) から呼び出すgit TUI | [公式リリース](https://github.com/jesseduffield/lazygit/releases)から `/usr/local/bin` へ配置 |
 
 ---
 
@@ -132,7 +133,8 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 ├── cleanup.bat           # Windows用クリーンアップ
 ├── documents/            # ドキュメント群
 ├   └── cheatsheet.md     # コマンドリファレンス
-└── scripts/              # 自作ユーティリティ
+├── scripts/              # 自作ユーティリティ
+└── windows/              # Windows側で動かす自作ツール (ime-watcher.ps1 等)
 
 ```
 
@@ -144,7 +146,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 * **秘匿情報の管理**: APIキー等は `.gitignore` 対象の `.zshrc.local` や `.setenv.local` を各自作成して記述してください。Git認証情報は `.gitconfig.local`（`.gitconfig.local.example` を複製）でOS別の `credential.helper`（`osxkeychain` / `manager` / `cache` 等）を設定してください。
 * **変更後の事前チェック (重要)**: 本リポジトリの設定やスクリプトを変更・更新した後は、Claude Code のスキル **`check-privacy-and-secrets`** を実行（例: 「プライベート情報や特定プロジェクトの情報が含まれていないかチェックして」と指示）し、APIキー・個人情報・個別プロジェクト依存のコードが誤って混入していないか事前チェックを行ってください。
 * **改行コード**: `.gitattributes` により、Windows環境での編集時も `LF` が強制されます。
-* **実行ファイル(exe)の非同梱**: Windows用の外部ツール（CapsLock変換、Vim用IME切替、WSL Gitクライアント連携）はリポジトリに含めていません。セキュリティソフトによる誤検知を避けるため、各自「📝 Windows 開発環境セットアップ TIPS」内のリンクから配布元公式サイト・GitHub Releasesよりダウンロードしてください。
+* **実行ファイル(exe)の非同梱**: Windows用の外部ツール（CapsLock変換、Vim用IME切替、WSL Gitクライアント連携）はリポジトリに含めていません。各自「📝 Windows 開発環境セットアップ TIPS」内のリンクから配布元公式サイト・GitHub Releasesよりダウンロードしてください。
 
 ---
 
@@ -167,18 +169,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 3. 画面上の CapsLock キーを選択し、変更先に Ctrl キーを指定します。
 4. 設定保存後、PCを再起動すると反映されます。
 
-### 2. Vim: Esc 時に自動で英数入力へ切り替える
-
-Vim（または他エディタのVimモード）でインサートモードを抜ける際、IMEを自動的にオフにします。
-
-* **配布元:** [vimmer-ahk Releases](https://github.com/koirand/vimmer-ahk/releases)
-* **設定方法:**
-1. 上記配布元から `vimmer-ahk.exe` をダウンロードします。
-2. `Win + R` キーを押し、`shell:startup` と入力して実行します。
-3. 開いた「スタートアップ」フォルダに、ダウンロードした `vimmer-ahk.exe` をコピーします。
-4. 次回ログイン時より自動で常駐し、機能が有効になります。
-
-### 3. Windows版 Git クライアントから WSL の Git を利用する
+### 2. Windows版 Git クライアントから WSL の Git を利用する
 
 Windows上のGUIクライアント（SourceTree等）から、WSL内にインストールされた Git を直接呼び出せるようにします。
 これにより、WindowsとWSL間での文字コード等の不整合を防ぎ、一貫したGit操作が可能になります。
@@ -194,7 +185,7 @@ Windows上のGUIクライアント（SourceTree等）から、WSL内にインス
 
 Windowsの標準設定だけで、Macのように「**無変換キーで英数**」「**変換キーで日本語**」に切り替える設定手順です。
 
-### 4. 日英入力切替を Mac 方式に変更する
+### 3. 日英入力切替を Mac 方式に変更する
 
 スペースキー両隣のキーで「英数 / 日本語」を切り替えられるように設定します。
 
@@ -205,6 +196,23 @@ Windowsの標準設定だけで、Macのように「**無変換キーで英数**
 4. **無変換キー** を `IME-オフ`、**変換キー** を `IME-オン` に設定。
 
 * **メリット:** 現在の入力モードを気にせず、左親指で「英数」、右親指で「日本語」と打ち分けることが可能になります。
+
+### 4. Neovim: インサートモード終了・ウィンドウ移動時に自動で英数入力へ切り替える
+
+WSL上のNeovim（またはVimモードのある他エディタ）でインサートモードを抜けた時・パネル移動（`<S-Tab>`等）した時に、IMEを自動的にオフにします。
+本リポジトリ同梱の `windows/ime-watcher.ps1`（IME操作の本体）と `windows/ime-watcher-launcher.vbs`（タスクバーにアイコンを出さず起動するランチャー）をWindows側で常駐起動しておくことで実現します。
+
+* **仕組み:** WSL側の `~/.nvim-ime-off-trigger` ファイルを `init.lua` が `InsertLeave` ・ `WinLeave` 時に書き換え、Windows側で常駐する `ime-watcher.ps1` がそれをポーリング検知してフォアグラウンドウィンドウのIMEをオフにします。（WSLから都度exeを起動する方式は対象ウィンドウ判定がずれ動作しなかったため、常駐監視方式にしています）
+  監視対象パス（ディストリビューション名・Linuxユーザー名）は起動時に `wsl.exe` 経由で自動取得するため、環境ごとの書き換えは不要です。
+* **設定方法:**
+1. `windows/ime-watcher.ps1` と `windows/ime-watcher-launcher.vbs` を**同じ**Windows側フォルダ（例: `C:\Users\<ユーザー名>\Tools`）へ配置します（vbsはps1と同じフォルダにある前提で動作します）。
+   * 配置先フォルダは、システムの環境変数 `Path` に追加してください（＝OS標準の「PATHを通す」操作）。次の手順のショートカットはフルパス指定のため追加しなくても起動できますが、動作確認でPowerShellから `ime-watcher.ps1` とだけ打って手動実行したい場合に必要です。
+     手順: `Win + R` → `sysdm.cpl` と入力して実行 → 「詳細設定」タブ → 「環境変数」ボタン → 「〇〇のユーザー環境変数」欄の `Path` を選択 → 「編集」 → 「新規」 → 配置先フォルダのパスを入力 → OKを押して全ウィンドウを閉じる → 以後は新しく開いたPowerShellウィンドウで反映されます。
+2. `Win + R` → `shell:startup` で開いたスタートアップフォルダで、`ime-watcher-launcher.vbs` を右クリック→ショートカットの作成、でショートカットを作成します（`.ps1` を直接指定せず、必ずこの `.vbs` を対象にしてください）。
+   * `powershell.exe -WindowStyle Hidden` を直接ショートカットに指定する方法もありますが、一瞬コンソールウィンドウが生成されてから非表示化される順序のためタスクバーにアイコンが残ることがあります。`.vbs` 経由（`WScript.Shell.Run` で非表示起動）だとコンソール自体が作られないため、タスクバーにも一切表示されません。
+3. 次回ログイン時より自動で常駐し、機能が有効になります。今すぐ試す場合は、作成したショートカットをダブルクリックして手動起動してください（タスクマネージャーの詳細タブに `wscript.exe` と `powershell.exe` が常駐していれば起動成功。タスクバーには何も表示されないのが正常です）。
+
+* **注意:** `ime-watcher.ps1` は必ずUTF-8 with BOMのまま配置してください。BOM無しUTF-8で保存するとWindows PowerShell 5.1がシステムロケール（日本語環境ではShift-JIS）として誤読し、日本語コメントの文字化けによりパースエラーで起動できません。`ime-watcher-launcher.vbs` はVBScriptがUTF-8を正式サポートしないため、コメントを含め全体をASCII文字のみで構成しています（改変時もASCII範囲を維持してください）。
 
 ---
 

@@ -4,8 +4,10 @@ Neovim設定
 前提:
 - lazy.nvim: 初回起動時に自動インストール
 - 外部コマンド: git / prettier / pint(PHP) / eslint (フォーマット・Lintに使用)
+- lazygit (https://github.com/jesseduffield/lazygit) → lazygit.nvim (<leader>g等) に使用
 - Nerd Font (nvim-web-devicons のアイコン表示に必要)
 - macOS: macism (brew tap laishulu/homebrew && brew install macism) → IME自動切替に使用
+- WSL: scripts/ime-watcher.ps1 (Windows側で常駐起動) → IME自動切替に使用
 
 主要キーマップ (<leader> = Space):
 - <C-n> / <leader>e        ファイルツリー切替 (neo-tree)
@@ -15,12 +17,14 @@ Neovim設定
 - <leader>tc               ターミナル切替
 - <leader>ts (visual)      選択範囲をターミナルへ送信
 - <leader>ac               ClaudeCode切替
+- <leader>g / ,st          LazyGit起動
+- <leader>G                LazyGit起動 (現在ファイルの履歴に絞り込み)
 - <S-Tab>                  ウィンドウ移動
 - gd / K / gr / <leader>rn / <leader>ca   LSP: 定義 / hover / 参照 / rename / code action
 
 構成:
 1. 基本設定  2. プラグイン(lazy.nvim)  3. 外観・挙動  4. キーマッピング
-5. 自動保存  6. OSC52クリップボード(SSH接続時)  7. macOS専用設定
+5. 自動保存  6. OSC52クリップボード(SSH接続時)  7. macOS専用設定  8. WSL専用設定
 
 起動モード:
 - nvim <ファイルパス>
@@ -301,6 +305,12 @@ require('lazy').setup({
     opts = {},
   },
   { 'bronson/vim-trailing-whitespace' },
+  {
+    'MeanderingProgrammer/render-markdown.nvim',
+    dependencies = { 'nvim-treesitter/nvim-treesitter', 'nvim-tree/nvim-web-devicons' },
+    ft = 'markdown',
+    opts = {},
+  },
 
   -- --- 開発サポート ---
   {
@@ -322,7 +332,7 @@ require('lazy').setup({
       })
       vim.filetype.add({ pattern = { ['.*%.blade%.php'] = 'blade' } })
 
-      local ts_filetypes = { 'javascript', 'typescript', 'tsx', 'php', 'html', 'css', 'json', 'lua', 'vim', 'blade' }
+      local ts_filetypes = { 'javascript', 'typescript', 'tsx', 'php', 'html', 'css', 'json', 'lua', 'vim', 'blade', 'markdown', 'markdown_inline' }
       require('nvim-treesitter').install(ts_filetypes)
       vim.api.nvim_create_autocmd('FileType', {
         pattern = ts_filetypes,
@@ -376,6 +386,16 @@ require('lazy').setup({
     'akinsho/git-conflict.nvim',
     version = '*',
     opts = {}, -- コンフリクトマーカーのハイライトとco/ct/cb/c0(ours/theirs/both/none選択)・]x/[x(次/前へ移動)を有効化
+  },
+  {
+    'kdheepak/lazygit.nvim',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+    cmd = { 'LazyGit', 'LazyGitFilterCurrentFile' },
+    keys = {
+      { ',st', '<cmd>LazyGit<cr>', desc = 'LazyGit起動' },
+      { '<leader>g', '<cmd>LazyGit<cr>', desc = 'LazyGit起動' },
+      { '<leader>G', '<cmd>LazyGitFilterCurrentFile<cr>', desc = 'LazyGit(現在ファイルの履歴)' },
+    },
   },
 
   -- --- LSP (旧 tsuquyomi / syntastic 後継) ---
@@ -945,6 +965,25 @@ vim.api.nvim_create_autocmd('ColorScheme', {
     vim.cmd('highlight Comment     ctermfg=22 guifg=#008800')
     vim.cmd('highlight Visual      ctermfg=8  guifg=#EEEEEE')
     vim.cmd('highlight MatchParen  cterm=underline gui=underline guibg=NONE')
+
+    -- render-markdown.nvim: デフォルトはtreesitterの@markup系グループにリンクされるが、
+    -- molokaiでは定義が薄く見出し/コードブロックのコントラストが弱いため明示的に上書きする
+    vim.cmd('highlight RenderMarkdownH1Bg guibg=#3c3d37 guifg=#f92672 gui=bold')
+    vim.cmd('highlight RenderMarkdownH2Bg guibg=#3c3d37 guifg=#a6e22e gui=bold')
+    vim.cmd('highlight RenderMarkdownH3Bg guibg=#3c3d37 guifg=#66d9ef gui=bold')
+    vim.cmd('highlight RenderMarkdownH4Bg guibg=#3c3d37 guifg=#e6db74 gui=bold')
+    vim.cmd('highlight RenderMarkdownH5Bg guibg=#3c3d37 guifg=#fd971f gui=bold')
+    vim.cmd('highlight RenderMarkdownH6Bg guibg=#3c3d37 guifg=#ae81ff gui=bold')
+    vim.cmd('highlight RenderMarkdownCode guibg=#272822')
+    vim.cmd('highlight RenderMarkdownCodeInline guibg=#3c3d37 guifg=#e6db74')
+    vim.cmd('highlight RenderMarkdownBullet guifg=#a6e22e')
+    vim.cmd('highlight RenderMarkdownQuote guifg=#75715e')
+    vim.cmd('highlight RenderMarkdownDash guifg=#75715e')
+    vim.cmd('highlight RenderMarkdownLink guifg=#66d9ef gui=underline')
+    vim.cmd('highlight RenderMarkdownSign guifg=#75715e')
+    vim.cmd('highlight RenderMarkdownTableHead guifg=#66d9ef')
+    vim.cmd('highlight RenderMarkdownTableRow guifg=#f8f8f2')
+    vim.cmd('highlight RenderMarkdownTableFill guifg=#75715e')
   end,
 })
 
@@ -998,7 +1037,6 @@ vim.keymap.set('n', '<C-Right>', '<C-i>', noremap_silent)
 vim.keymap.set('n', '<S-Tab>', '<C-w>w', noremap_silent)
 
 -- プラグイン用マッピング
-vim.keymap.set('n', ',st', ':Gstatus<CR>', noremap_silent)
 vim.keymap.set('n', ',df', ':Gdiff<CR>',   noremap_silent)
 vim.keymap.set('n', ',bl', ':Gblame<CR>',  noremap_silent)
 
@@ -1058,4 +1096,21 @@ if vim.fn.has('mac') == 1 then
       end,
     })
   end
+end
+
+-- ==========================================================
+-- 8. WSL専用設定 (他OSでは本セクションごと除外可能)
+-- ==========================================================
+if vim.env.WSL_DISTRO_NAME then
+  -- IME自動切替: InsertLeave(挿入モード終了)・WinLeave(分割ウィンドウ間移動)でIMEをオフへ切替
+  -- WSLから都度exeを起動する方式(im-select.exe等)はGetForegroundWindowの
+  -- 対象がずれ切替が効かないため、Windows側常駐スクリプト(scripts/ime-watcher.ps1)が
+  -- 監視するトリガーファイルを書き換えるだけにする(プロセス起動不要)
+  local ime_trigger_path = (vim.env.HOME or '') .. '/.nvim-ime-off-trigger'
+  vim.api.nvim_create_autocmd({ 'InsertLeave', 'WinLeave' }, {
+    pattern = '*',
+    callback = function()
+      pcall(vim.fn.writefile, {}, ime_trigger_path)
+    end,
+  })
 end

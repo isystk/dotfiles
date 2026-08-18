@@ -38,7 +38,7 @@
 
 ### 2. Neovim プラグイン操作
 
-`init.lua` に設定した各プラグイン (Laravel.nvim / neo-tree.nvim / claudecode.nvim / Telescope / Trouble / LSP) のキーマップ。
+`init.lua` に設定した各プラグイン (Laravel.nvim / neo-tree.nvim / claudecode.nvim / lazygit.nvim / Telescope / Trouble / LSP) のキーマップ。
 
 | 分類            | キー操作                    | 内容 / 挙動                                                |
 |---------------|-------------------------|---------------------------------------------------------|
@@ -61,6 +61,8 @@
 |               | `<leader>aa` / `<leader>ad` | 差分を承認(Accept) / 却下(Deny)                              |
 | **ターミナル**    | `<leader>tc`            | ターミナル切替                                                |
 |               | `<leader>ts` (visual)   | 選択範囲をターミナルへ送信                                          |
+| **lazygit**   | `<leader>g` / `,st`     | LazyGit 起動                                             |
+|               | `<leader>G`             | LazyGit 起動（現在ファイルの履歴に絞り込み）                            |
 | **LSP**       | `gd` / `K`              | 定義元へジャンプ / hover 表示                                    |
 |               | `gr`                    | 参照箇所を表示                                                |
 |               | `<leader>rn`            | リネーム                                                   |
