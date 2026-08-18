@@ -1113,4 +1113,19 @@ if vim.env.WSL_DISTRO_NAME then
       pcall(vim.fn.writefile, {}, ime_trigger_path)
     end,
   })
+
+  -- Windows Terminalのブラケットペーストでvisual選択に貼り付ける際、標準処理だと
+  -- 選択範囲の削除で無名レジスタが書き換わり、unnamedplus経由でクリップボードも
+  -- 汚染されて連続貼り付けができなくなる(2回目以降、直前に選択していたテキストが貼られる)。
+  -- visualモード中のペーストだけ、選択範囲をblackholeレジスタで削除してから挿入し回避する。
+  -- (Windows TerminalはCtrl+Vをターミナル側で横取りしvimのkeymapを経由しないため、
+  -- 4.キーマッピングの<C-v>単体のkeymapでは対処できず、ここでvim.paste自体を上書きする)
+  vim.paste = function(lines, phase)
+    local mode = vim.api.nvim_get_mode().mode
+    if mode:match('^[vV\22]') and (phase == 1 or phase == -1) then
+      vim.cmd('normal! "_d')
+    end
+    vim.api.nvim_put(lines, 'c', false, true)
+    return true
+  end
 end

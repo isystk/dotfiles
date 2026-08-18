@@ -146,7 +146,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 * **秘匿情報の管理**: APIキー等は `.gitignore` 対象の `.zshrc.local` や `.setenv.local` を各自作成して記述してください。Git認証情報は `.gitconfig.local`（`.gitconfig.local.example` を複製）でOS別の `credential.helper`（`osxkeychain` / `manager` / `cache` 等）を設定してください。
 * **変更後の事前チェック (重要)**: 本リポジトリの設定やスクリプトを変更・更新した後は、Claude Code のスキル **`check-privacy-and-secrets`** を実行（例: 「プライベート情報や特定プロジェクトの情報が含まれていないかチェックして」と指示）し、APIキー・個人情報・個別プロジェクト依存のコードが誤って混入していないか事前チェックを行ってください。
 * **改行コード**: `.gitattributes` により、Windows環境での編集時も `LF` が強制されます。
-* **実行ファイル(exe)の非同梱**: Windows用の外部ツール（CapsLock変換、Vim用IME切替、WSL Gitクライアント連携）はリポジトリに含めていません。各自「📝 Windows 開発環境セットアップ TIPS」内のリンクから配布元公式サイト・GitHub Releasesよりダウンロードしてください。
+* **実行ファイル(exe)の非同梱**: Windows用の外部ツール（Vim用IME切替、WSL Gitクライアント連携）はリポジトリに含めていません。各自「📝 Windows 開発環境セットアップ TIPS」内のリンクから配布元公式サイト・GitHub Releasesよりダウンロードしてください。CapsLock変換はリポジトリ同梱の PowerShell スクリプトで完結します。
 
 ---
 
@@ -160,14 +160,23 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 
 ### 1. CapsLock を Ctrl に変更する
 
-キーボードの CapsLock キーを Ctrl キーとして機能させます。
+キーボードの CapsLock キーを Ctrl キーとして機能させます。レジストリの Scancode Map を書き換える PowerShell スクリプト `windows/toggle-capslock-ctrl.ps1` で行います（外部ツール不要）。実行するたびに現在の設定状態を自動判定し、「適用」「解除」をトグルします。
 
-* **配布元:** [ChgKey (Change Key)](https://satoshi3.sakura.ne.jp/f_soft/dw_win.htm)
-* **手順:**
-1. 上記配布元から `ChgKey.exe` をダウンロードします。
-2. ダウンロードしたファイルを **管理者権限** で実行します。
-3. 画面上の CapsLock キーを選択し、変更先に Ctrl キーを指定します。
-4. 設定保存後、PCを再起動すると反映されます。
+* **スクリプト:** `windows/toggle-capslock-ctrl.ps1`
+* **実行方法:**
+1. PowerShell を **管理者として実行** で開きます（システム全体のレジストリキーを操作するため）。
+2. 以下を実行します。
+
+   ```powershell
+   powershell.exe -ExecutionPolicy Bypass -File "C:\path\to\windows\toggle-capslock-ctrl.ps1"
+   ```
+
+3. 現在の設定状態（未適用／適用済み）が表示されるので、確認プロンプトに `y` で応答します。
+   * 未適用の場合 → CapsLock を Ctrl に変更
+   * 適用済みの場合 → 元の CapsLock 動作に戻す
+4. 反映には **サインアウトまたは再起動** が必要です。
+
+補足: `-ExecutionPolicy Bypass` はこのプロセス内でのみ署名なしスクリプトの実行制限を回避するもので、システム設定を恒久変更するものではありません。
 
 ### 2. Windows版 Git クライアントから WSL の Git を利用する
 
