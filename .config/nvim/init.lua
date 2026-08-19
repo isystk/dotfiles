@@ -4,14 +4,17 @@ Neovim設定
 前提:
 - lazy.nvim: 初回起動時に自動インストール
 - 外部コマンド: git / prettier / pint(PHP) / eslint (フォーマット・Lintに使用)
+- ripgrep(rg) → ファイル検索(<C-p> / <Space><Space> / <leader>fg)に使用
 - lazygit (https://github.com/jesseduffield/lazygit) → lazygit.nvim (<leader>g等) に使用
 - Nerd Font (nvim-web-devicons のアイコン表示に必要)
 - macOS: macism (brew tap laishulu/homebrew && brew install macism) → IME自動切替に使用
-- WSL: scripts/ime-watcher.ps1 (Windows側で常駐起動) → IME自動切替に使用
+- WSL: windows/ime-watcher.ps1 (Windows側で常駐起動) → IME自動切替に使用
 
 主要キーマップ (<leader> = Space):
 - <C-n> / <leader>e        ファイルツリー切替 (neo-tree)
 - <C-p> / <Space><Space>   ファイル検索 (telescope)
+- <C-f>                    ファイル内検索 (telescope)
+- <C-r>                    置換 (ノーマル: バッファ全体 / ビジュアル: 選択範囲)
 - <leader>fg               全文検索
 - <leader>fb               バッファ一覧
 - <leader>tc               ターミナル切替
@@ -280,6 +283,13 @@ local function telescope_find_files_win_path()
   }):find()
 end
 
+-- ビジュアル選択中の<C-f>は、選択テキストを検索クエリへ自動セットしてファイル内検索を開く
+local function telescope_fuzzy_find_with_selection()
+  vim.cmd('normal! "vy')
+  local selected = vim.fn.getreg('v')
+  require('telescope.builtin').current_buffer_fuzzy_find({ default_text = selected })
+end
+
 -- ==========================================================
 -- 2. lazy.nvim (Plugin Management)
 -- ==========================================================
@@ -431,7 +441,9 @@ require('lazy').setup({
             vim.lsp.buf.definition()
           end, opts)
           vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-          vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+          vim.keymap.set('n', 'gr', function()
+            require('telescope.builtin').lsp_references()
+          end, opts)
           vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
           vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
           vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
@@ -445,6 +457,10 @@ require('lazy').setup({
     dependencies = { 'folke/snacks.nvim' },
     opts = {
       terminal_cmd = 'claude --agent evolver',
+      -- Markdown等でvisual選択中、カーソル移動毎の高頻度selection_changed送信が
+      -- WebSocket ECONNRESET(Client read error)を誘発するため、送信間隔を広げて緩和する
+      -- (track_selection=falseにすると<leader>as手動送信自体が無効化されるため使えない)
+      visual_demotion_delay_ms = 500,
       terminal = {
         split_width_percentage = 65, -- 1以上は絶対列数として扱われる(snacks.win仕様)。ターミナル全体幅に追従させず固定
         diff_split_width_percentage = 65, -- diff表示時も同じ固定幅を維持
@@ -869,6 +885,8 @@ require('lazy').setup({
     keys = {
       { '<C-p>', telescope_find_files_win_path, desc = 'ファイル検索' },
       { '<Space><Space>', telescope_find_files_win_path, desc = 'ファイル検索' },
+      { '<C-f>', '<cmd>Telescope current_buffer_fuzzy_find<cr>', desc = 'ファイル内検索' },
+      { '<C-f>', telescope_fuzzy_find_with_selection, mode = 'v', desc = 'ファイル内検索(選択範囲)' },
       { '<leader>fg', '<cmd>Telescope live_grep<cr>', desc = '全文検索' },
       { '<leader>fb', '<cmd>Telescope buffers<cr>', desc = 'バッファ一覧' },
       { '<leader>fr', '<cmd>Telescope oldfiles<cr>', desc = '最近使ったファイル' },
@@ -992,6 +1010,142 @@ vim.g.re_visual_selection = 0
 vim.cmd('colorscheme molokai')
 
 -- ==========================================================
+-- 3.5 右クリックメニュー(PopUp)のカスタマイズ
+-- ==========================================================
+-- 既定のPopUpメニューは標準ランタイムのmenu.vimで定義され、右クリック初回表示時に遅延読込される。
+-- 事前にruntimeしてロードした上で、既定メニューを丸ごと外し実用的な構成に作り直す。
+vim.cmd('runtime! menu.vim')
+vim.cmd('silent! aunmenu PopUp')
+
+-- menu選択時のコールバックはpopup表示中(textlock)の同期コンテキストで実行され、その中で
+-- テキスト変更・ウィンドウ生成を行うとE565(Not allowed to change text or change window)になるため、
+-- 実処理は必ずvim.schedule()でtextlock解除後まで遅延させる。
+-- (menuコマンドはVimscript文字列で関数呼び出しを書けないため、lua関数はグローバル経由で呼ぶ)
+_G.__popup_actions = {
+  inspect = function() vim.cmd('Inspect') end,
+  go_to_definition = function() vim.lsp.buf.definition() end,
+  references = function() require('telescope.builtin').lsp_references() end,
+  hover = function() vim.lsp.buf.hover() end,
+  rename = function() vim.lsp.buf.rename() end,
+  code_action = function() vim.lsp.buf.code_action() end,
+  document_symbols = function() require('telescope.builtin').lsp_document_symbols() end,
+  show_diagnostics = function() vim.cmd('Trouble diagnostics toggle') end,
+  grep_word = function()
+    local word = vim.fn.expand('<cword>')
+    require('telescope.builtin').live_grep({ default_text = word })
+  end,
+  yank_path_line = function()
+    local path = vim.fn.expand('%:.')
+    local line = vim.api.nvim_win_get_cursor(0)[1]
+    local text = string.format('%s:%d', path, line)
+    vim.fn.setreg('+', text)
+    vim.fn.setreg('"', text)
+    vim.notify('yank: ' .. text)
+  end,
+  reveal_in_tree = function() vim.cmd('Neotree reveal') end,
+  paste = function() vim.cmd('normal! "+gP') end,
+  select_all = function() vim.cmd('normal! ggVG') end,
+  -- Stage/UnstageはLazyGitの操作段数が多く実用的でないため、gitコマンドを直接叩く
+  git_stage_file = function() __git_file_cmd('add') end,
+  git_unstage_file = function() __git_file_cmd('reset') end,
+  -- Diff/Blame/HistoryはLazyGit経由(fugitive等を未導入のため)。開いた後はLazyGit側の
+  -- キー操作(コミット選択→d でdiff、b でblame等)で該当情報まで辿る
+  git_diff_file = function() vim.cmd('LazyGit') end,
+  git_blame_line = function() vim.cmd('LazyGitFilterCurrentFile') end,
+  git_file_history = function() vim.cmd('LazyGitFilterCurrentFile') end,
+  lazygit = function() vim.cmd('LazyGit') end,
+}
+_G.__popup_run = function(name)
+  local fn = _G.__popup_actions[name]
+  if fn then
+    vim.schedule(fn)
+  end
+end
+
+-- カレントファイルに対して`git -C <dir> <subcmd> -- <file>`を実行する共通ヘルパー
+_G.__git_file_cmd = function(subcmd)
+  local file = vim.fn.expand('%:p')
+  if file == '' then
+    vim.notify('保存されたファイルがありません', vim.log.levels.WARN)
+    return
+  end
+  local dir = vim.fn.fnamemodify(file, ':h')
+  local cmd = string.format('git -C %s %s -- %s', vim.fn.shellescape(dir), subcmd, vim.fn.shellescape(file))
+  local out = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 then
+    vim.notify('git ' .. subcmd .. ' failed: ' .. out, vim.log.levels.ERROR)
+  else
+    vim.notify('git ' .. subcmd .. ': ' .. vim.fn.fnamemodify(file, ':t'))
+  end
+end
+
+vim.cmd([[
+  nnoremenu 1.10 PopUp.Inspect <Cmd>lua __popup_run('inspect')<CR>
+  nnoremenu 1.20 PopUp.-1- <Nop>
+  nnoremenu 1.21 PopUp.Go\ to\ Definition <Cmd>lua __popup_run('go_to_definition')<CR>
+  nnoremenu 1.22 PopUp.Find\ References <Cmd>lua __popup_run('references')<CR>
+  nnoremenu 1.23 PopUp.Hover <Cmd>lua __popup_run('hover')<CR>
+  nnoremenu 1.24 PopUp.Rename\ Symbol <Cmd>lua __popup_run('rename')<CR>
+  nnoremenu 1.25 PopUp.Code\ Action <Cmd>lua __popup_run('code_action')<CR>
+  nnoremenu 1.26 PopUp.Document\ Symbols <Cmd>lua __popup_run('document_symbols')<CR>
+  nnoremenu 1.30 PopUp.-2- <Nop>
+  nnoremenu 1.31 PopUp.Show\ All\ Diagnostics <Cmd>lua __popup_run('show_diagnostics')<CR>
+  nnoremenu 1.40 PopUp.-3- <Nop>
+  nnoremenu 1.41 PopUp.Grep\ Word <Cmd>lua __popup_run('grep_word')<CR>
+  nnoremenu 1.42 PopUp.Yank\ Path:Line <Cmd>lua __popup_run('yank_path_line')<CR>
+  nnoremenu 1.43 PopUp.Reveal\ in\ Tree <Cmd>lua __popup_run('reveal_in_tree')<CR>
+  nnoremenu 1.50 PopUp.-4- <Nop>
+  nnoremenu 1.51 PopUp.Paste <Cmd>lua __popup_run('paste')<CR>
+  nnoremenu 1.52 PopUp.Select\ All <Cmd>lua __popup_run('select_all')<CR>
+  nnoremenu 1.60 PopUp.-5- <Nop>
+  nnoremenu 1.61 PopUp.Git:\ Stage\ File <Cmd>lua __popup_run('git_stage_file')<CR>
+  nnoremenu 1.62 PopUp.Git:\ Unstage\ File <Cmd>lua __popup_run('git_unstage_file')<CR>
+  nnoremenu 1.63 PopUp.Git:\ Diff\ File <Cmd>lua __popup_run('git_diff_file')<CR>
+  nnoremenu 1.64 PopUp.Git:\ Blame\ Line <Cmd>lua __popup_run('git_blame_line')<CR>
+  nnoremenu 1.65 PopUp.Git:\ File\ History <Cmd>lua __popup_run('git_file_history')<CR>
+  nnoremenu 1.66 PopUp.Git:\ LazyGit <Cmd>lua __popup_run('lazygit')<CR>
+]])
+
+-- neo-tree用: ファイル操作コマンドをカーソル位置ノードに対して実行する共通ヘルパー(同じくschedule必須)
+_G.__neotree_popup_cmd = function(name)
+  vim.schedule(function()
+    local state = require('neo-tree.sources.manager').get_state('filesystem')
+    local ok_fs, fs_commands = pcall(require, 'neo-tree.sources.filesystem.commands')
+    local ok_common, common_commands = pcall(require, 'neo-tree.sources.common.commands')
+    local fn = (ok_fs and fs_commands[name]) or (ok_common and common_commands[name])
+    if fn then
+      fn(state)
+    end
+  end)
+end
+
+vim.cmd([[
+  nnoremenu 1.10 PopUpNeoTree.Add\ File <Cmd>lua __neotree_popup_cmd('add')<CR>
+  nnoremenu 1.11 PopUpNeoTree.Add\ Directory <Cmd>lua __neotree_popup_cmd('add_directory')<CR>
+  nnoremenu 1.20 PopUpNeoTree.-1- <Nop>
+  nnoremenu 1.21 PopUpNeoTree.Rename <Cmd>lua __neotree_popup_cmd('rename')<CR>
+  nnoremenu 1.22 PopUpNeoTree.Delete <Cmd>lua __neotree_popup_cmd('delete')<CR>
+  nnoremenu 1.30 PopUpNeoTree.-2- <Nop>
+  nnoremenu 1.31 PopUpNeoTree.Copy\ Path <Cmd>lua __neotree_popup_cmd('copy')<CR>
+  nnoremenu 1.32 PopUpNeoTree.Copy\ to\ Clipboard <Cmd>lua __neotree_popup_cmd('copy_to_clipboard')<CR>
+  nnoremenu 1.33 PopUpNeoTree.Cut\ to\ Clipboard <Cmd>lua __neotree_popup_cmd('cut_to_clipboard')<CR>
+  nnoremenu 1.34 PopUpNeoTree.Paste <Cmd>lua __neotree_popup_cmd('paste_from_clipboard')<CR>
+]])
+
+-- mousemodelのpopup_setpos任せだとクリック位置へカーソルが移動し切らずGrep Word等が
+-- <cword>を取得できない場合があるため、右クリック時に明示的にカーソルを移動してからメニューを開く。
+-- neo-treeバッファ上ではファイル操作用の別メニュー(PopUpNeoTree)を開く
+vim.keymap.set('n', '<RightMouse>', function()
+  local mouse = vim.fn.getmousepos()
+  if mouse.winid ~= 0 then
+    vim.api.nvim_set_current_win(mouse.winid)
+    pcall(vim.api.nvim_win_set_cursor, mouse.winid, { mouse.line, math.max(mouse.column - 1, 0) })
+  end
+  local menu = vim.bo.filetype == 'neo-tree' and 'PopUpNeoTree' or 'PopUp'
+  vim.cmd('popup ' .. menu)
+end, { desc = '右クリックメニュー(カーソル位置確定後に表示)' })
+
+-- ==========================================================
 -- 4. キーマッピング
 -- ==========================================================
 local noremap_silent = { noremap = true, silent = true }
@@ -1022,12 +1176,29 @@ vim.keymap.set('i', '<C-z>', '<C-o>u',    noremap_silent)
 vim.keymap.set('v', '<C-z>', '<Esc>u',    noremap_silent)
 vim.keymap.set('n', '<C-y>', '<C-r>',     noremap_silent)
 vim.keymap.set('i', '<C-y>', '<C-o><C-r>', noremap_silent)
+vim.keymap.set('n', '<C-S-z>', '<C-r>',     noremap_silent)
+vim.keymap.set('i', '<C-S-z>', '<C-o><C-r>', noremap_silent)
+vim.keymap.set('v', '<C-S-z>', '<Esc><C-r>', noremap_silent)
 vim.keymap.set('v', '<C-x>', 'x',         noremap_silent)
 vim.keymap.set('v', '<C-c>', 'y',         noremap_silent)
 vim.keymap.set('i', '<C-v>', '<C-r>*',    noremap_silent)
 vim.keymap.set('v', '<C-v>', '"0p',       noremap_silent)
 -- <C-q> で矩形選択（ターミナルが <C-v> を横取りする場合の代替）
 vim.keymap.set('n', '<C-q>', '<C-v>', { noremap = true })
+
+-- 置換（ノーマル: バッファ全体 / ビジュアル: 選択範囲。gcで置換毎に確認）
+vim.keymap.set('n', '<C-r>', ':%s//gc<Left><Left><Left>', { noremap = true })
+
+-- ビジュアル選択中の<C-r>は、選択テキストを検索パターンへ自動セットしてから置換欄へ入る
+-- (正規表現特殊文字はescapeでエスケープ、複数行選択時の改行は\nへ変換して1パターンにまとめる)
+local function visual_replace_with_selection()
+  vim.cmd('normal! "vy')
+  local selected = vim.fn.getreg('v')
+  local pattern = vim.fn.escape(selected, '/\\.*$^~[]'):gsub('\n', '\\n')
+  local keys = ':s/' .. pattern .. '//gc<Left><Left><Left>'
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), 'n', false)
+end
+vim.keymap.set('v', '<C-r>', visual_replace_with_selection, { desc = '選択範囲を検索欄にセットして置換' })
 
 -- ジャンプ履歴（前/次に閲覧していた位置へ移動。ブラウザの戻る/進むに相当）
 vim.keymap.set('n', '<C-Left>',  '<C-o>', noremap_silent)
@@ -1104,7 +1275,7 @@ end
 if vim.env.WSL_DISTRO_NAME then
   -- IME自動切替: InsertLeave(挿入モード終了)・WinLeave(分割ウィンドウ間移動)でIMEをオフへ切替
   -- WSLから都度exeを起動する方式(im-select.exe等)はGetForegroundWindowの
-  -- 対象がずれ切替が効かないため、Windows側常駐スクリプト(scripts/ime-watcher.ps1)が
+  -- 対象がずれ切替が効かないため、Windows側常駐スクリプト(windows/ime-watcher.ps1)が
   -- 監視するトリガーファイルを書き換えるだけにする(プロセス起動不要)
   local ime_trigger_path = (vim.env.HOME or '') .. '/.nvim-ime-off-trigger'
   vim.api.nvim_create_autocmd({ 'InsertLeave', 'WinLeave' }, {
@@ -1120,12 +1291,16 @@ if vim.env.WSL_DISTRO_NAME then
   -- visualモード中のペーストだけ、選択範囲をblackholeレジスタで削除してから挿入し回避する。
   -- (Windows TerminalはCtrl+Vをターミナル側で横取りしvimのkeymapを経由しないため、
   -- 4.キーマッピングの<C-v>単体のkeymapでは対処できず、ここでvim.paste自体を上書きする)
+  local default_paste = vim.paste
   vim.paste = function(lines, phase)
     local mode = vim.api.nvim_get_mode().mode
     if mode:match('^[vV\22]') and (phase == 1 or phase == -1) then
       vim.cmd('normal! "_d')
+      vim.api.nvim_put(lines, 'c', false, true)
+      return true
     end
-    vim.api.nvim_put(lines, 'c', false, true)
-    return true
+    -- visual以外(cmdlineの`:` `/`入力中等)はNeovim標準実装に委譲する。
+    -- nvim_putはバッファへの挿入専用APIのため、丸ごと上書きするとコマンドライン入力中の貼り付けが効かなくなる
+    return default_paste(lines, phase)
   end
 end

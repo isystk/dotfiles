@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal enabledelayedexpansion
 set DOTFILES=%~dp0
 
@@ -18,6 +18,12 @@ if exist "%USERPROFILE%\.gitconfig" (
 if exist "%USERPROFILE%\.wslconfig" (
     echo Deleting file link: .wslconfig
     del "%USERPROFILE%\.wslconfig"
+)
+
+set WT_SETTINGS=%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json
+if exist "%WT_SETTINGS%" (
+    echo Deleting file: Windows Terminal settings.json
+    del "%WT_SETTINGS%"
 )
 
 :: 2. ディレクトリのリンク削除 (rmdir コマンドを使用)

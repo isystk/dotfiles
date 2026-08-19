@@ -55,7 +55,7 @@ cleanup.bat
 ### 補足
 
 * **Mac/WSL**: `uninstall.sh` はシンボリックリンクの解除と、一時的なキャッシュディレクトリの削除を行います。
-* **Windows**: `cleanup.bat` は `mklink` で作成したリンクの削除と、コピーした `.wslconfig` の削除を行います。
+* **Windows**: `cleanup.bat` は `mklink` で作成したリンクの削除と、コピーした `.wslconfig` / Windows Terminal `settings.json` の削除を行います。
 
 ---
 
@@ -64,14 +64,14 @@ cleanup.bat
 ### 🍎 Mac
 
 ```bash
-brew install mise gh fzy ccat git-lfs
+brew install mise gh fzy ccat git-lfs ripgrep
 
 ```
 
 ### 🐧 Linux (WSL / Ubuntu)
 
 ```bash
-sudo apt update && sudo apt install -y zsh gh fzy git-lfs
+sudo apt update && sudo apt install -y zsh gh fzy git-lfs ripgrep
 
 # Neovim (AppImage)
 curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
@@ -93,6 +93,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 | **git-secrets** | 認証情報の露出防止 | `git secrets --register-aws --global` |
 | **tree-sitter CLI** | Neovim (nvim-treesitter) のパーサービルドに必要 | `npm install -g tree-sitter-cli`（`mise install` 後、`node`/`npm` が使える状態で実行） |
 | **lazygit** | Neovim (lazygit.nvim, `<leader>g`) から呼び出すgit TUI | [公式リリース](https://github.com/jesseduffield/lazygit/releases)から `/usr/local/bin` へ配置 |
+| **ripgrep** | Neovim (telescope.nvim) のファイル検索 (`<C-p>` / `<Space><Space>` / `<leader>fg`) に必要 | 上記OS別依存パッケージ導入手順でインストール済み |
 
 ---
 
@@ -113,6 +114,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 │   ├── mise/             # Mise (config.toml)
 │   ├── nvim/             # Neovim設定
 │   ├── voicevox/         # VOICEVOX読み辞書設定
+│   ├── windows-terminal/ # Windows Terminal設定 (settings.json、Windows側)
 │   └── wsl/              # WSL設定 (wsl.conf, resolv.conf)
 ├── .gemini               # Gemini&Antigravity設定
 ├── .github                # PRテンプレート等
@@ -145,6 +147,13 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 * **AIエージェント用ルールファイルの運用**: `.claude/rule-templates/` に、Claude Code / Gemini CLI / Codex CLI 共通で使う言語・フレームワーク別ルール（PHP、JavaScript、Docker等）のテンプレートを配置しています。以前は `~/.claude/rules` としてシンボリックリンクで全プロジェクトへグローバル公開していましたが、クラウド実行環境（`~/.claude` が存在しない）でルールが参照できない問題があったため廃止しました。新規プロジェクトでルールを使う場合は、このテンプレートを各リポジトリの `.claude/rules/`（Gemini CLIは `.agent/rules/`）へ `cp` し、プロジェクト固有ルールとしてGit管理してください。
 * **秘匿情報の管理**: APIキー等は `.gitignore` 対象の `.zshrc.local` や `.setenv.local` を各自作成して記述してください。Git認証情報は `.gitconfig.local`（`.gitconfig.local.example` を複製）でOS別の `credential.helper`（`osxkeychain` / `manager` / `cache` 等）を設定してください。
 * **変更後の事前チェック (重要)**: 本リポジトリの設定やスクリプトを変更・更新した後は、Claude Code のスキル **`check-privacy-and-secrets`** を実行（例: 「プライベート情報や特定プロジェクトの情報が含まれていないかチェックして」と指示）し、APIキー・個人情報・個別プロジェクト依存のコードが誤って混入していないか事前チェックを行ってください。
+* **Nerd Font**: Neovim (neo-tree.nvim / nvim-web-devicons) のファイルアイコン表示に、[Nerd Fonts](https://www.nerdfonts.com/) のパッチ済みフォントが必要です。未設定の場合、アイコン部分が文字化けまたは豆腐（□）表示になります。
+  * **🍎 Mac**: `brew install --cask font-hack-nerd-font` を実行後、ターミナルアプリ（iTerm2 / Terminal.app等）のフォント設定で `Hack Nerd Font` を選択してください。
+  * **🪟 WSL (Windows Terminal)**: 描画はWSL内ではなく**Windows側アプリ**が担当するため、Windows側でフォントを導入します。
+    ```powershell
+    winget install --id DEVCOM.JetBrainsMonoNerdFont -e
+    ```
+    インストール後、Windows Terminalの設定（対象プロファイル → 外観 → フォント）で `JetBrainsMono Nerd Font` を選択してください。反映されない場合は、`profiles.defaults` ではなく実際に使用している**個別プロファイル側**のフォント設定を直接確認・変更してください（個別設定が`defaults`を上書きするため）。
 * **改行コード**: `.gitattributes` により、Windows環境での編集時も `LF` が強制されます。
 * **実行ファイル(exe)の非同梱**: Windows用の外部ツール（Vim用IME切替、WSL Gitクライアント連携）はリポジトリに含めていません。各自「📝 Windows 開発環境セットアップ TIPS」内のリンクから配布元公式サイト・GitHub Releasesよりダウンロードしてください。CapsLock変換はリポジトリ同梱の PowerShell スクリプトで完結します。
 
