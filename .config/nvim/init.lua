@@ -833,7 +833,12 @@ require('lazy').setup({
         commands = {
           open_in_file_win = function(state)
             local node = state.tree:get_node()
-            if not node or node.type == 'directory' then
+            if not node then
+              return
+            end
+            if node.type == 'directory' then
+              -- フォルダはファイルウィンドウへ逃がさず通常のtoggle_node(開閉)に委譲
+              require('neo-tree.sources.common.commands').toggle_node(state)
               return
             end
             local path = node.path or node:get_id()
