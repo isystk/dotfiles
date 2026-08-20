@@ -80,6 +80,7 @@ safe_unlink "$HOME/.codex/skills"
 
 if [ -n "$IS_MAC" ]; then
     # macOS固有の設定
+    safe_unlink "$HOME/.ideavimrc"
     safe_unlink "$HOME/.config/karabiner/karabiner.json"
     safe_unlink "$HOME/.config/karabiner/assets/complex_modifications"
 fi

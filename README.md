@@ -42,13 +42,13 @@ chmod +x uninstall.sh
   ※ **管理者権限**で実行してください。
 * **適用（セットアップ）**
 ```cmd
-setup.bat
+windows\setup.bat
 
 ```
 
 * **削除（クリーンアップ）**
 ```cmd
-cleanup.bat
+windows\cleanup.bat
 
 ```
 
@@ -114,16 +114,14 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 │   ├── mise/             # Mise (config.toml)
 │   ├── nvim/             # Neovim設定
 │   ├── voicevox/         # VOICEVOX読み辞書設定
-│   ├── windows-terminal/ # Windows Terminal設定 (settings.json、Windows側)
 │   └── wsl/              # WSL設定 (wsl.conf, resolv.conf)
 ├── .gemini               # Gemini&Antigravity設定
 ├── .github                # PRテンプレート等
 ├── .gitconfig            # Git設定
 ├── .gitignore / .gitignore_global # Git除外設定
-├── .ideavimrc            # JetBrains IDE用Vim設定 (Windows側)
+├── .ideavimrc            # JetBrains IDE用Vim設定 (Mac/Windows側)
 ├── .setenv.mac / .wsl / .linux / .local.example # OS固有の環境変数
 ├── .vimrc                # Vim設定
-├── .wslconfig            # WSL全体設定 (Windows側)
 ├── .zshrc                # Zsh設定
 ├── editors/              # 開発エディタ設定（各ディレクトリのrsync.sh push/pullで手動反映）
 │   ├── Antigravity/      # Antigravity設定
@@ -131,12 +129,15 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 │   └── VSCode/           # VSCode設定
 ├── install.sh            # Unix系用セットアップ
 ├── uninstall.sh          # Unix系用アンインストール
-├── setup.bat             # Windows用セットアップ
-├── cleanup.bat           # Windows用クリーンアップ
 ├── documents/            # ドキュメント群
 ├   └── cheatsheet.md     # コマンドリファレンス
 ├── scripts/              # 自作ユーティリティ
-└── windows/              # Windows側で動かす自作ツール (ime-watcher.ps1 等)
+└── windows/              # Windows用ファイル一式
+    ├── setup.bat            # Windows用セットアップ
+    ├── cleanup.bat          # Windows用クリーンアップ
+    ├── .wslconfig           # WSL全体設定 (Windows側にコピー配置)
+    ├── windows-terminal/    # Windows Terminal設定 (settings.json、Windows側にコピー配置)
+    └── tools/               # Windows側で動かす自作ツール (ime-watcher.ps1 等)
 
 ```
 
@@ -169,15 +170,15 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 
 ### 1. CapsLock を Ctrl に変更する
 
-キーボードの CapsLock キーを Ctrl キーとして機能させます。レジストリの Scancode Map を書き換える PowerShell スクリプト `windows/toggle-capslock-ctrl.ps1` で行います（外部ツール不要）。実行するたびに現在の設定状態を自動判定し、「適用」「解除」をトグルします。
+キーボードの CapsLock キーを Ctrl キーとして機能させます。レジストリの Scancode Map を書き換える PowerShell スクリプト `windows/tools/toggle-capslock-ctrl.ps1` で行います（外部ツール不要）。実行するたびに現在の設定状態を自動判定し、「適用」「解除」をトグルします。
 
-* **スクリプト:** `windows/toggle-capslock-ctrl.ps1`
+* **スクリプト:** `windows/tools/toggle-capslock-ctrl.ps1`
 * **実行方法:**
 1. PowerShell を **管理者として実行** で開きます（システム全体のレジストリキーを操作するため）。
 2. 以下を実行します。
 
    ```powershell
-   powershell.exe -ExecutionPolicy Bypass -File "C:\path\to\windows\toggle-capslock-ctrl.ps1"
+   powershell.exe -ExecutionPolicy Bypass -File "C:\path\to\windows\tools\toggle-capslock-ctrl.ps1"
    ```
 
 3. 現在の設定状態（未適用／適用済み）が表示されるので、確認プロンプトに `y` で応答します。
@@ -218,12 +219,12 @@ Windowsの標準設定だけで、Macのように「**無変換キーで英数**
 ### 4. Neovim: インサートモード終了・ウィンドウ移動時に自動で英数入力へ切り替える
 
 WSL上のNeovim（またはVimモードのある他エディタ）でインサートモードを抜けた時・パネル移動（`<S-Tab>`等）した時に、IMEを自動的にオフにします。
-本リポジトリ同梱の `windows/ime-watcher.ps1`（IME操作の本体）と `windows/ime-watcher-launcher.vbs`（タスクバーにアイコンを出さず起動するランチャー）をWindows側で常駐起動しておくことで実現します。
+本リポジトリ同梱の `windows/tools/ime-watcher.ps1`（IME操作の本体）と `windows/tools/ime-watcher-launcher.vbs`（タスクバーにアイコンを出さず起動するランチャー）をWindows側で常駐起動しておくことで実現します。
 
 * **仕組み:** WSL側の `~/.nvim-ime-off-trigger` ファイルを `init.lua` が `InsertLeave` ・ `WinLeave` 時に書き換え、Windows側で常駐する `ime-watcher.ps1` がそれをポーリング検知してフォアグラウンドウィンドウのIMEをオフにします。（WSLから都度exeを起動する方式は対象ウィンドウ判定がずれ動作しなかったため、常駐監視方式にしています）
   監視対象パス（ディストリビューション名・Linuxユーザー名）は起動時に `wsl.exe` 経由で自動取得するため、環境ごとの書き換えは不要です。
 * **設定方法:**
-1. `windows/ime-watcher.ps1` と `windows/ime-watcher-launcher.vbs` を**同じ**Windows側フォルダ（例: `C:\Users\<ユーザー名>\Tools`）へ配置します（vbsはps1と同じフォルダにある前提で動作します）。
+1. `windows/tools/ime-watcher.ps1` と `windows/tools/ime-watcher-launcher.vbs` を**同じ**Windows側フォルダ（例: `C:\Users\<ユーザー名>\Tools`）へ配置します（vbsはps1と同じフォルダにある前提で動作します）。
    * 配置先フォルダは、システムの環境変数 `Path` に追加してください（＝OS標準の「PATHを通す」操作）。次の手順のショートカットはフルパス指定のため追加しなくても起動できますが、動作確認でPowerShellから `ime-watcher.ps1` とだけ打って手動実行したい場合に必要です。
      手順: `Win + R` → `sysdm.cpl` と入力して実行 → 「詳細設定」タブ → 「環境変数」ボタン → 「〇〇のユーザー環境変数」欄の `Path` を選択 → 「編集」 → 「新規」 → 配置先フォルダのパスを入力 → OKを押して全ウィンドウを閉じる → 以後は新しく開いたPowerShellウィンドウで反映されます。
 2. `Win + R` → `shell:startup` で開いたスタートアップフォルダで、`ime-watcher-launcher.vbs` を右クリック→ショートカットの作成、でショートカットを作成します（`.ps1` を直接指定せず、必ずこの `.vbs` を対象にしてください）。

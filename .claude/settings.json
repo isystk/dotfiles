@@ -218,13 +218,14 @@
   "language": "Japanese",
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
-  "autoUpdatesChannel": "stable",
+  "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "theme": "dark",
   "preferredNotifChannel": "terminal_bell",
   "autoCompactEnabled": true,
   "fileCheckpointingEnabled": true,
   "showTurnDuration": true,
-  "teammateMode": "tmux",
-  "prStatusFooterEnabled": true
+  "teammateMode": "auto",
+  "prStatusFooterEnabled": true,
+  "agentPushNotifEnabled": true
 }

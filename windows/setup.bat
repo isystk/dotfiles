@@ -4,14 +4,14 @@ set DOTFILES=%~dp0
 
 :: 1. ファイルのシンボリックリンク作成
 echo Creating symbolic links...
-call :CreateFileLink "%USERPROFILE%\.ideavimrc" "%DOTFILES%.ideavimrc"
-call :CreateFileLink "%USERPROFILE%\.gitconfig" "%DOTFILES%.gitconfig"
+call :CreateFileLink "%USERPROFILE%\.ideavimrc" "%DOTFILES%..\.ideavimrc"
+call :CreateFileLink "%USERPROFILE%\.gitconfig" "%DOTFILES%..\.gitconfig"
 
 :: --- .gitconfig.local (credential.helper等のOS別設定) は example からコピー ---
-call :CopyWithPrompt "%DOTFILES%.gitconfig.local.example" "%USERPROFILE%\.gitconfig.local"
+call :CopyWithPrompt "%DOTFILES%..\.gitconfig.local.example" "%USERPROFILE%\.gitconfig.local"
 
 :: 2. ディレクトリのシンボリックリンク作成
-call :CreateDirLink "%USERPROFILE%\.ssh" "%DOTFILES%..\.ssh"
+call :CreateDirLink "%USERPROFILE%\.ssh" "%DOTFILES%..\..\.ssh"
 
 :: --- 重要: .wslconfig はリンクではなく「コピー」を行う ---
 call :CopyWithPrompt "%DOTFILES%.wslconfig" "%USERPROFILE%\.wslconfig"
@@ -20,7 +20,7 @@ call :CopyWithPrompt "%DOTFILES%.wslconfig" "%USERPROFILE%\.wslconfig"
 :: (シンボリックリンクだと保存時にリンクが壊れるため)
 set WT_DIR=%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState
 if exist "%WT_DIR%" (
-    call :CopyWithPrompt "%DOTFILES%.config\windows-terminal\settings.json" "%WT_DIR%\settings.json"
+    call :CopyWithPrompt "%DOTFILES%windows-terminal\settings.json" "%WT_DIR%\settings.json"
 ) else (
     echo Windows Terminal not found. Skipping settings.json.
 )

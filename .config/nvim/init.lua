@@ -8,7 +8,7 @@ Neovim設定
 - lazygit (https://github.com/jesseduffield/lazygit) → lazygit.nvim (<leader>g等) に使用
 - Nerd Font (nvim-web-devicons のアイコン表示に必要)
 - macOS: macism (brew tap laishulu/homebrew && brew install macism) → IME自動切替に使用
-- WSL: windows/ime-watcher.ps1 (Windows側で常駐起動) → IME自動切替に使用
+- WSL: windows/tools/ime-watcher.ps1 (Windows側で常駐起動) → IME自動切替に使用
 
 主要キーマップ (<leader> = Space):
 - <C-n> / <leader>e        ファイルツリー切替 (neo-tree)
@@ -88,6 +88,21 @@ local function toggle_wsl_terminal()
   vim.api.nvim_win_set_height(0, 15) -- 既定分割比率(50%)を15行固定へ矯正
 end
 vim.keymap.set('n', '<leader>tc', toggle_wsl_terminal, { desc = 'WSLターミナル切替' })
+
+-- OSのファイルマネージャーでパスを開く(mac: open / WSL: explorer.exe)。
+-- `open`はmacOS専用コマンドのためWSLには存在せず無反応になる。WSLではWindows側パスへ
+-- 変換(wslpath -w)した上でexplorer.exeへ渡す(explorer.exeは正常時も非0終了することがあるため終了コードは無視)
+local function open_in_explorer(path)
+  local abs_path = vim.fn.fnamemodify(path, ':p')
+  if vim.fn.has('mac') == 1 then
+    vim.fn.system('open ' .. vim.fn.shellescape(abs_path))
+  elseif vim.env.WSL_DISTRO_NAME then
+    local win_path = vim.fn.system('wslpath -w ' .. vim.fn.shellescape(abs_path)):gsub('\n', '')
+    vim.fn.system('explorer.exe ' .. vim.fn.shellescape(win_path))
+  else
+    vim.notify('Open Explorer: mac/WSL以外は未対応', vim.log.levels.WARN)
+  end
+end
 
 -- ターミナルへテキスト送信(既存バッファ無ければ開く)。windowを操作するため、
 -- 呼び出し元はvisualモードを抜けてノーマルモードで実行すること
@@ -225,7 +240,8 @@ local function telescope_find_files_win_path()
 
   local find_command = {
     'rg', '--files', '--hidden', '--no-ignore', -- .envなどドットファイル・.gitignore対象も検索対象に含める
-    '--glob', '!.git/*', '--glob', '!.history/*', '--glob', '!node_modules/*', '--glob', '!vendor/*',
+    -- '**/'を付与し、gitignore流のルート限定マッチではなく全階層のnode_modules/vendor等を除外する
+    '--glob', '!**/.git/*', '--glob', '!**/.history/*', '--glob', '!**/node_modules/*', '--glob', '!**/vendor/*',
   }
 
   local function recent_files()
@@ -257,10 +273,39 @@ local function telescope_find_files_win_path()
     return results
   end
 
-  -- 全ファイル一覧は初回入力時のみrg実行しキャッシュ(入力毎の再実行を避ける)
+  -- 全ファイル一覧は初回入力時のみrg実行しキャッシュ(入力毎の再実行を避ける)。
+  -- systemlist(同期実行)はUIスレッドをブロックするため、jobstartで非同期実行しfinderをrefreshする
   local all_files_cache = nil
+  local job_running = false
+  local current_picker
 
-  pickers.new({}, {
+  local function start_all_files_job()
+    if job_running or all_files_cache then
+      return
+    end
+    job_running = true
+    vim.fn.jobstart(find_command, {
+      stdout_buffered = true,
+      on_stdout = function(_, data)
+        if data then
+          all_files_cache = vim.tbl_filter(function(line) return line ~= '' end, data)
+        end
+      end,
+      on_exit = function()
+        job_running = false
+        if current_picker and not current_picker.closed and all_files_cache then
+          current_picker:refresh(finders.new_table({
+            results = all_files_cache,
+            entry_maker = function(entry)
+              return { value = entry, display = entry, ordinal = entry }
+            end,
+          }), { reset_prompt = false })
+        end
+      end,
+    })
+  end
+
+  current_picker = pickers.new({}, {
     prompt_title = 'ファイル検索',
     sorting_strategy = 'ascending', -- 直近ファイルを画面最上部に表示(デフォルトのdescendingだと最下部に来るため)
     finder = finders.new_dynamic({
@@ -271,8 +316,11 @@ local function telescope_find_files_win_path()
         if not prompt or prompt == '' then
           return recent_files()
         end
-        all_files_cache = all_files_cache or vim.fn.systemlist(find_command)
-        return all_files_cache
+        if all_files_cache then
+          return all_files_cache
+        end
+        start_all_files_job()
+        return {}
       end,
     }),
     sorter = conf.file_sorter({}),
@@ -280,7 +328,8 @@ local function telescope_find_files_win_path()
     on_input_filter_cb = function(query)
       return { prompt = query:gsub('\\', '/') }
     end,
-  }):find()
+  })
+  current_picker:find()
 end
 
 -- ビジュアル選択中の<C-f>は、選択テキストを検索クエリへ自動セットしてファイル内検索を開く
@@ -1043,6 +1092,18 @@ _G.__popup_actions = {
     vim.notify('yank: ' .. text)
   end,
   reveal_in_tree = function() vim.cmd('Neotree reveal') end,
+  -- Open Explorer/Run Format/Run Test: 対象は現在編集中ファイルの相対パス
+  open_explorer = function()
+    open_in_explorer(vim.fn.expand('%:.'))
+  end,
+  -- Run Format/Run Test は `make format <path>` / `make test <path>` をカレントディレクトリの
+  -- Makefile経由で実行する想定。対象パス配下(または上位)にMakefileが存在しない場合は動作しない
+  run_format = function()
+    send_text_to_terminal('make format ' .. vim.fn.shellescape(vim.fn.expand('%:.')) .. '\n')
+  end,
+  run_test = function()
+    send_text_to_terminal('make test ' .. vim.fn.shellescape(vim.fn.expand('%:.')) .. '\n')
+  end,
   paste = function() vim.cmd('normal! "+gP') end,
   select_all = function() vim.cmd('normal! ggVG') end,
   -- Stage/UnstageはLazyGitの操作段数が多く実用的でないため、gitコマンドを直接叩く
@@ -1094,6 +1155,10 @@ vim.cmd([[
   nnoremenu 1.41 PopUp.Grep\ Word <Cmd>lua __popup_run('grep_word')<CR>
   nnoremenu 1.42 PopUp.Yank\ Path:Line <Cmd>lua __popup_run('yank_path_line')<CR>
   nnoremenu 1.43 PopUp.Reveal\ in\ Tree <Cmd>lua __popup_run('reveal_in_tree')<CR>
+  nnoremenu 1.44 PopUp.-3.5- <Nop>
+  nnoremenu 1.45 PopUp.Open\ Explorer <Cmd>lua __popup_run('open_explorer')<CR>
+  nnoremenu 1.46 PopUp.Run\ Format <Cmd>lua __popup_run('run_format')<CR>
+  nnoremenu 1.47 PopUp.Run\ Test <Cmd>lua __popup_run('run_test')<CR>
   nnoremenu 1.50 PopUp.-4- <Nop>
   nnoremenu 1.51 PopUp.Paste <Cmd>lua __popup_run('paste')<CR>
   nnoremenu 1.52 PopUp.Select\ All <Cmd>lua __popup_run('select_all')<CR>
@@ -1119,6 +1184,27 @@ _G.__neotree_popup_cmd = function(name)
   end)
 end
 
+-- neo-tree用: Open Explorer/Run Format/Run Test。対象はカーソル位置ノードの相対パス。
+-- Run Format/Run Test は `make format <path>` / `make test <path>` をカレントディレクトリの
+-- Makefile経由で実行する想定。対象パス配下(または上位)にMakefileが存在しない場合は動作しない
+_G.__neotree_popup_action = function(name)
+  vim.schedule(function()
+    local state = require('neo-tree.sources.manager').get_state('filesystem')
+    local node = state and state.tree and state.tree:get_node()
+    if not node then
+      return
+    end
+    local path = vim.fn.fnamemodify(node.path or node:get_id(), ':.')
+    if name == 'open_explorer' then
+      open_in_explorer(path)
+    elseif name == 'run_format' then
+      send_text_to_terminal('make format ' .. vim.fn.shellescape(path) .. '\n')
+    elseif name == 'run_test' then
+      send_text_to_terminal('make test ' .. vim.fn.shellescape(path) .. '\n')
+    end
+  end)
+end
+
 vim.cmd([[
   nnoremenu 1.10 PopUpNeoTree.Add\ File <Cmd>lua __neotree_popup_cmd('add')<CR>
   nnoremenu 1.11 PopUpNeoTree.Add\ Directory <Cmd>lua __neotree_popup_cmd('add_directory')<CR>
@@ -1130,6 +1216,10 @@ vim.cmd([[
   nnoremenu 1.32 PopUpNeoTree.Copy\ to\ Clipboard <Cmd>lua __neotree_popup_cmd('copy_to_clipboard')<CR>
   nnoremenu 1.33 PopUpNeoTree.Cut\ to\ Clipboard <Cmd>lua __neotree_popup_cmd('cut_to_clipboard')<CR>
   nnoremenu 1.34 PopUpNeoTree.Paste <Cmd>lua __neotree_popup_cmd('paste_from_clipboard')<CR>
+  nnoremenu 1.40 PopUpNeoTree.-3- <Nop>
+  nnoremenu 1.41 PopUpNeoTree.Open\ Explorer <Cmd>lua __neotree_popup_action('open_explorer')<CR>
+  nnoremenu 1.42 PopUpNeoTree.Run\ Format <Cmd>lua __neotree_popup_action('run_format')<CR>
+  nnoremenu 1.43 PopUpNeoTree.Run\ Test <Cmd>lua __neotree_popup_action('run_test')<CR>
 ]])
 
 -- mousemodelのpopup_setpos任せだとクリック位置へカーソルが移動し切らずGrep Word等が
@@ -1275,7 +1365,7 @@ end
 if vim.env.WSL_DISTRO_NAME then
   -- IME自動切替: InsertLeave(挿入モード終了)・WinLeave(分割ウィンドウ間移動)でIMEをオフへ切替
   -- WSLから都度exeを起動する方式(im-select.exe等)はGetForegroundWindowの
-  -- 対象がずれ切替が効かないため、Windows側常駐スクリプト(windows/ime-watcher.ps1)が
+  -- 対象がずれ切替が効かないため、Windows側常駐スクリプト(windows/tools/ime-watcher.ps1)が
   -- 監視するトリガーファイルを書き換えるだけにする(プロセス起動不要)
   local ime_trigger_path = (vim.env.HOME or '') .. '/.nvim-ime-off-trigger'
   vim.api.nvim_create_autocmd({ 'InsertLeave', 'WinLeave' }, {

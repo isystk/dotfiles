@@ -197,7 +197,9 @@ symlink "$SCRIPT_DIR/.codex/.codexignore" "$HOME/.codexignore"
 symlink "$SCRIPT_DIR/.codex/skills" "$HOME/.codex/skills"
 
 if [ -n "$IS_MAC" ]; then
-    # macOS固有の設定 (Karabiner-Elements)
+    # macOS固有の設定
+    symlink "$SCRIPT_DIR/.ideavimrc" "$HOME/.ideavimrc"
+
     echo -n "Setup macOS config (Karabiner-Elements)? (y/N): "
     read -r mac_ans
     case "$mac_ans" in
