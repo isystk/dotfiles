@@ -811,10 +811,7 @@ require('lazy').setup({
     },
     lazy = false, -- VimEnter autocmd(ツリー/ClaudeCode自動表示)を起動時に確実に登録するため即時ロード
     cmd = 'Neotree',
-    keys = {
-      { '<C-n>', '<cmd>Neotree toggle<cr>', desc = 'ファイルツリー切替' },
-      { '<leader>e', '<cmd>Neotree toggle<cr>', desc = 'ファイルツリー切替' },
-    },
+    -- <C-n>/<leader>eはgit_statusパネルも連動させるためconfig内でtoggle_neotree_panelsへ紐付ける
     opts = {
       close_if_last_window = true,
       filesystem = {
@@ -822,9 +819,107 @@ require('lazy').setup({
           visible = true, -- 隠しファイルも表示 (旧NERDTreeShowHidden相当)
         },
       },
+      git_status = {
+        window = {
+          position = 'current', -- filesystemウィンドウ下の自前分割に埋め込む(position='left'は1タブ1枠のため重ね表示不可)
+          -- position='current'時、標準の"open"はget_appropriate_windowを経由せず
+          -- カレントウィンドウ(=git_statusパネル自身)にファイルを開いてしまうため、
+          -- ファイル表示用ウィンドウへ明示的に開く独自コマンドへ差し替える
+          mappings = {
+            ['<cr>'] = 'open_in_file_win',
+            ['<2-LeftMouse>'] = 'open_in_file_win',
+          },
+        },
+        commands = {
+          open_in_file_win = function(state)
+            local node = state.tree:get_node()
+            if not node or node.type == 'directory' then
+              return
+            end
+            local path = node.path or node:get_id()
+
+            -- 起動時にマークした専用ファイルウィンドウがあれば優先
+            local target_win
+            for _, win in ipairs(vim.api.nvim_list_wins()) do
+              if vim.api.nvim_win_is_valid(win) and vim.w[win].is_file_win then
+                target_win = win
+                break
+              end
+            end
+            -- 無ければneo-tree・ターミナル以外の最初の通常ウィンドウを使う
+            if not target_win then
+              for _, win in ipairs(vim.api.nvim_list_wins()) do
+                local buf = vim.api.nvim_win_get_buf(win)
+                if vim.bo[buf].filetype ~= 'neo-tree' and vim.bo[buf].buftype == '' then
+                  target_win = win
+                  break
+                end
+              end
+            end
+
+            if target_win then
+              vim.api.nvim_set_current_win(target_win)
+            end
+            vim.cmd('edit ' .. vim.fn.fnameescape(path))
+          end,
+        },
+      },
     },
     config = function(_, opts)
       require('neo-tree').setup(opts)
+
+      -- filesystem(左サイドバー) + git_status(その下の分割、g:panels=1時のみ)を開く。
+      -- git_statusはposition='current'指定のため、事前にfilesystem下へ分割を作ってから埋め込む
+      local function open_neotree_panels()
+        local manager = require('neo-tree.sources.manager')
+        vim.cmd('Neotree show')
+        local fs_state = manager.get_state('filesystem')
+        if not (fs_state and fs_state.winid and vim.api.nvim_win_is_valid(fs_state.winid)) then
+          return
+        end
+        if vim.g.panels ~= 1 then
+          return
+        end
+        local gs_state = manager.get_state('git_status')
+        if gs_state and gs_state.winid and vim.api.nvim_win_is_valid(gs_state.winid) then
+          return -- 既に開いている
+        end
+        vim.api.nvim_set_current_win(fs_state.winid)
+        vim.cmd('belowright split')
+        -- splitはfilesystemのneo-treeバッファをそのまま複製するため、filetype='neo-tree'のまま
+        -- 'Neotree position=current'を実行すると、neo-tree側の安全策で継承中のposition('left')へ
+        -- 上書きされてしまう。空バッファへ逃がしてから呼び出す
+        vim.cmd('enew')
+        vim.api.nvim_win_set_height(0, 15)
+        -- dirを渡さないとstate.pathが未設定のままになり、manager.refresh()の対象外
+        -- (state.path判定)になって:w保存時の自動リフレッシュが効かなくなる
+        require('neo-tree.command').execute({
+          action = 'show',
+          source = 'git_status',
+          position = 'current',
+          dir = fs_state.path or vim.fn.getcwd(),
+        })
+        vim.api.nvim_set_current_win(fs_state.winid)
+      end
+
+      -- filesystem・git_status(左サイドバー内)を一括で開閉するトグル。
+      -- 個別にNeotree toggleすると片方だけ開閉されずレイアウトが崩れるため
+      local function toggle_neotree_panels()
+        local manager = require('neo-tree.sources.manager')
+        local fs_state = manager.get_state('filesystem')
+        if fs_state and fs_state.winid and vim.api.nvim_win_is_valid(fs_state.winid) then
+          local gs_state = manager.get_state('git_status')
+          if gs_state and gs_state.winid and vim.api.nvim_win_is_valid(gs_state.winid) then
+            vim.api.nvim_win_close(gs_state.winid, false)
+          end
+          vim.cmd('Neotree close')
+        else
+          open_neotree_panels()
+        end
+      end
+      vim.keymap.set('n', '<C-n>', toggle_neotree_panels, { desc = 'ファイルツリー切替' })
+      vim.keymap.set('n', '<leader>e', toggle_neotree_panels, { desc = 'ファイルツリー切替' })
+      _G.__open_neotree_panels = open_neotree_panels
 
       local augroup = vim.api.nvim_create_augroup('NeoTreeSetting', { clear = true })
       vim.api.nvim_create_autocmd('FileType', {
@@ -845,6 +940,18 @@ require('lazy').setup({
             path = vim.fn.fnamemodify(path, ':.')
             send_text_to_terminal(path)
           end, { buffer = args.buf, desc = 'カーソル位置ファイルパスをターミナルへ入力' })
+
+          -- git_statusパネルにフォーカスした瞬間にリフレッシュ(定期タイマーより即時性を優先)
+          vim.api.nvim_create_autocmd('WinEnter', {
+            group = augroup,
+            buffer = args.buf,
+            callback = function()
+              local ok, source = pcall(vim.api.nvim_buf_get_var, args.buf, 'neo_tree_source')
+              if ok and source == 'git_status' then
+                require('neo-tree.sources.git_status').refresh()
+              end
+            end,
+          })
         end,
       })
       vim.api.nvim_create_autocmd('VimEnter', {
@@ -852,7 +959,7 @@ require('lazy').setup({
         callback = function()
           -- 起動時 --cmd "let g:panels=1" 指定時のみ複数パネル(ClaudeCode+ターミナル+Neotree)を展開する
           if vim.g.panels ~= 1 then
-            vim.cmd('Neotree show')
+            _G.__open_neotree_panels()
             vim.cmd('stopinsert')
             return
           end
@@ -891,7 +998,7 @@ require('lazy').setup({
           end
 
           -- レイアウト確定後にNeotreeを開く(先に開くとwindow close処理と競合しInvalid window idになる)
-          vim.cmd('Neotree show')
+          _G.__open_neotree_panels()
 
           -- ClaudeCode起動時に自動でインサートモードへ入る(auto_insertデフォルト)ため、
           -- 起動直後はノーマルモードへ戻す
@@ -914,7 +1021,15 @@ require('lazy').setup({
           if vim.fn.isdirectory(bufname) == 1 then
             return
           end
-          require('neo-tree.command').execute({ action = 'show', reveal = true, reveal_force_cwd = true })
+          -- カレントのneo-tree cwd配下のファイルのみreveal。cwd外のファイルはcwdを
+          -- 強制変更せず、確認ダイアログも出さず、revealだけスキップしてツリーはそのまま保つ
+          local fs_state = require('neo-tree.sources.manager').get_state('filesystem')
+          require('neo-tree.command').execute({
+            action = 'show',
+            reveal = true,
+            reveal_force_cwd = false,
+            dir = fs_state and fs_state.path,
+          })
         end,
       })
     end,
@@ -1115,6 +1230,7 @@ _G.__popup_actions = {
   git_blame_line = function() vim.cmd('LazyGitFilterCurrentFile') end,
   git_file_history = function() vim.cmd('LazyGitFilterCurrentFile') end,
   lazygit = function() vim.cmd('LazyGit') end,
+  cheatsheet = function() _G.__show_cheatsheet() end,
 }
 _G.__popup_run = function(name)
   local fn = _G.__popup_actions[name]
@@ -1155,7 +1271,7 @@ vim.cmd([[
   nnoremenu 1.41 PopUp.Grep\ Word <Cmd>lua __popup_run('grep_word')<CR>
   nnoremenu 1.42 PopUp.Yank\ Path:Line <Cmd>lua __popup_run('yank_path_line')<CR>
   nnoremenu 1.43 PopUp.Reveal\ in\ Tree <Cmd>lua __popup_run('reveal_in_tree')<CR>
-  nnoremenu 1.44 PopUp.-3.5- <Nop>
+  nnoremenu 1.44 PopUp.-3a- <Nop>
   nnoremenu 1.45 PopUp.Open\ Explorer <Cmd>lua __popup_run('open_explorer')<CR>
   nnoremenu 1.46 PopUp.Run\ Format <Cmd>lua __popup_run('run_format')<CR>
   nnoremenu 1.47 PopUp.Run\ Test <Cmd>lua __popup_run('run_test')<CR>
@@ -1163,12 +1279,9 @@ vim.cmd([[
   nnoremenu 1.51 PopUp.Paste <Cmd>lua __popup_run('paste')<CR>
   nnoremenu 1.52 PopUp.Select\ All <Cmd>lua __popup_run('select_all')<CR>
   nnoremenu 1.60 PopUp.-5- <Nop>
-  nnoremenu 1.61 PopUp.Git:\ Stage\ File <Cmd>lua __popup_run('git_stage_file')<CR>
-  nnoremenu 1.62 PopUp.Git:\ Unstage\ File <Cmd>lua __popup_run('git_unstage_file')<CR>
-  nnoremenu 1.63 PopUp.Git:\ Diff\ File <Cmd>lua __popup_run('git_diff_file')<CR>
-  nnoremenu 1.64 PopUp.Git:\ Blame\ Line <Cmd>lua __popup_run('git_blame_line')<CR>
-  nnoremenu 1.65 PopUp.Git:\ File\ History <Cmd>lua __popup_run('git_file_history')<CR>
-  nnoremenu 1.66 PopUp.Git:\ LazyGit <Cmd>lua __popup_run('lazygit')<CR>
+  nnoremenu 1.61 PopUp.Git:\ LazyGit <Cmd>lua __popup_run('lazygit')<CR>
+  nnoremenu 1.70 PopUp.-6- <Nop>
+  nnoremenu 1.71 PopUp.Help <Cmd>lua __popup_run('cheatsheet')<CR>
 ]])
 
 -- neo-tree用: ファイル操作コマンドをカーソル位置ノードに対して実行する共通ヘルパー(同じくschedule必須)
@@ -1205,6 +1318,29 @@ _G.__neotree_popup_action = function(name)
   end)
 end
 
+-- neo-tree用(git_statusパネル専用): ステージ/アンステージ/リセット。
+-- コマンド本体はneo-tree標準のsources/common/commands.lua実装をそのまま使う。
+-- git_statusはposition='current'のためstateがwinid単位で管理されており、
+-- winid未指定のget_stateだとtree未構築の別state(nil)を掴んでエラーになる
+_G.__neotree_git_popup_cmd = function(name)
+  local winid = vim.api.nvim_get_current_win()
+  vim.schedule(function()
+    local state = require('neo-tree.sources.manager').get_state('git_status', nil, winid)
+    local ok, common_commands = pcall(require, 'neo-tree.sources.common.commands')
+    local fn = ok and common_commands[name]
+    if fn then
+      fn(state)
+    end
+  end)
+end
+
+vim.cmd([[
+  nnoremenu 1.10 PopUpNeoTreeGit.Stage\ File <Cmd>lua __neotree_git_popup_cmd('git_add_file')<CR>
+  nnoremenu 1.11 PopUpNeoTreeGit.Unstage\ File <Cmd>lua __neotree_git_popup_cmd('git_unstage_file')<CR>
+  nnoremenu 1.20 PopUpNeoTreeGit.-1- <Nop>
+  nnoremenu 1.21 PopUpNeoTreeGit.Reset\ File <Cmd>lua __neotree_git_popup_cmd('git_revert_file')<CR>
+]])
+
 vim.cmd([[
   nnoremenu 1.10 PopUpNeoTree.Add\ File <Cmd>lua __neotree_popup_cmd('add')<CR>
   nnoremenu 1.11 PopUpNeoTree.Add\ Directory <Cmd>lua __neotree_popup_cmd('add_directory')<CR>
@@ -1224,14 +1360,23 @@ vim.cmd([[
 
 -- mousemodelのpopup_setpos任せだとクリック位置へカーソルが移動し切らずGrep Word等が
 -- <cword>を取得できない場合があるため、右クリック時に明示的にカーソルを移動してからメニューを開く。
--- neo-treeバッファ上ではファイル操作用の別メニュー(PopUpNeoTree)を開く
+-- neo-treeバッファ上ではファイル操作用の別メニュー(PopUpNeoTree/PopUpNeoTreeGit)を開く。
+-- filesystem/git_statusは同じfiletype='neo-tree'のため、バッファ変数neo_tree_sourceで判別する
 vim.keymap.set('n', '<RightMouse>', function()
   local mouse = vim.fn.getmousepos()
   if mouse.winid ~= 0 then
     vim.api.nvim_set_current_win(mouse.winid)
+    -- ターミナルパネルでは右クリックメニューを出さない(通常の右クリック挙動に任せる)
+    if vim.bo.buftype == 'terminal' then
+      return
+    end
     pcall(vim.api.nvim_win_set_cursor, mouse.winid, { mouse.line, math.max(mouse.column - 1, 0) })
   end
-  local menu = vim.bo.filetype == 'neo-tree' and 'PopUpNeoTree' or 'PopUp'
+  local menu = 'PopUp'
+  if vim.bo.filetype == 'neo-tree' then
+    local ok, source = pcall(vim.api.nvim_buf_get_var, 0, 'neo_tree_source')
+    menu = (ok and source == 'git_status') and 'PopUpNeoTreeGit' or 'PopUpNeoTree'
+  end
   vim.cmd('popup ' .. menu)
 end, { desc = '右クリックメニュー(カーソル位置確定後に表示)' })
 
@@ -1300,6 +1445,42 @@ vim.keymap.set('n', '<S-Tab>', '<C-w>w', noremap_silent)
 -- プラグイン用マッピング
 vim.keymap.set('n', ',df', ':Gdiff<CR>',   noremap_silent)
 vim.keymap.set('n', ',bl', ':Gblame<CR>',  noremap_silent)
+
+-- チートシート(~/dotfiles/documents/cheatsheet.md)をフロートウィンドウで表示する。
+-- 表示中バッファは使い捨て(bufhidden=wipe)にし、q/<Esc>で閉じられるようにする。
+-- 右クリックメニュー(PopUp.Cheatsheet)からも呼ぶためグローバル登録する
+_G.__show_cheatsheet = function()
+  local path = vim.fn.expand('~/dotfiles/documents/cheatsheet.md')
+  if vim.fn.filereadable(path) == 0 then
+    vim.notify('cheatsheet.mdが見つかりません: ' .. path, vim.log.levels.ERROR)
+    return
+  end
+
+  local width = math.floor(vim.o.columns * 0.8)
+  local height = math.floor(vim.o.lines * 0.8)
+  local buf = vim.fn.bufadd(path)
+  vim.fn.bufload(buf)
+  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].modifiable = false
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    style = 'minimal',
+    border = 'rounded',
+    title = ' Cheatsheet ',
+    title_pos = 'center',
+  })
+  vim.wo[win].wrap = false
+
+  local close_opts = { buffer = buf, noremap = true, silent = true }
+  vim.keymap.set('n', 'q', '<cmd>close<CR>', close_opts)
+  vim.keymap.set('n', '<Esc>', '<cmd>close<CR>', close_opts)
+end
+vim.keymap.set('n', '<leader>?', _G.__show_cheatsheet, { desc = 'チートシートをフロート表示' })
 
 -- ==========================================================
 -- 5. 自動保存
