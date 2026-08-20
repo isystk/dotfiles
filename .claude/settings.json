@@ -106,7 +106,7 @@
       "Read(./.env.*)",
       "Read(./secrets/**)"
     ],
-    "defaultMode": "default",
+    "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
   },
   "enableAllProjectMcpServers": true,
@@ -226,6 +226,6 @@
   "fileCheckpointingEnabled": true,
   "showTurnDuration": true,
   "teammateMode": "auto",
-  "prStatusFooterEnabled": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "prStatusFooterEnabled": true
 }

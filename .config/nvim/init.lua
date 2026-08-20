@@ -862,10 +862,65 @@ require('lazy').setup({
               end
             end
 
+            -- 通常表示ではなく変更差分(HEADとの差分)をdiffバッファとして表示する。
+            -- 追跡外ファイルはHEADとの差分が取れないため、新規ファイル全体を追加差分として生成する。
+            local diff_output = vim.fn.systemlist({ 'git', 'diff', 'HEAD', '--', path })
+            if #diff_output == 0 then
+              diff_output = vim.fn.systemlist({ 'git', 'diff', '--no-index', '--', '/dev/null', path })
+            end
+
+            -- diff生成中(systemlist)や別バッファのBufDelete等の副作用でウィンドウが
+            -- 閉じられ、ここまでの間にtarget_winが無効化されるケースがあるため直前に再検証する
+            if target_win and not vim.api.nvim_win_is_valid(target_win) then
+              target_win = nil
+            end
+
             if target_win then
               vim.api.nvim_set_current_win(target_win)
             end
-            vim.cmd('edit ' .. vim.fn.fnameescape(path))
+
+            if #diff_output == 0 then
+              -- 差分が取得できない場合(変更なしファイル等)は通常表示にフォールバック
+              vim.cmd('edit ' .. vim.fn.fnameescape(path))
+              return
+            end
+
+            local buf_name = 'diff://' .. path
+            local existing = vim.fn.bufnr(buf_name)
+            if existing ~= -1 then
+              vim.api.nvim_buf_delete(existing, { force = true })
+            end
+            local buf = vim.api.nvim_create_buf(false, true)
+            vim.api.nvim_buf_set_name(buf, buf_name)
+            vim.api.nvim_buf_set_lines(buf, 0, -1, false, diff_output)
+            vim.bo[buf].filetype = 'diff'
+            vim.bo[buf].buftype = 'nofile'
+            vim.bo[buf].bufhidden = 'wipe'
+            vim.bo[buf].swapfile = false
+            vim.bo[buf].modifiable = false
+            if target_win and not vim.api.nvim_win_is_valid(target_win) then
+              target_win = nil
+            end
+            vim.api.nvim_win_set_buf(target_win or 0, buf)
+
+            -- filesystemパネル側でも同じファイルをreveal(ハイライト)する。
+            -- action='focus'はneo-treeウィンドウへフォーカスを奪うため、reveal後は
+            -- diffバッファ側のウィンドウへフォーカスを戻す
+            local diff_win = vim.api.nvim_get_current_win()
+            local ok_cmd, neotree_command = pcall(require, 'neo-tree.command')
+            if ok_cmd then
+              neotree_command.execute({
+                action = 'focus',
+                source = 'filesystem',
+                position = 'left',
+                reveal = true,
+                reveal_file = path,
+                reveal_force_cwd = true,
+              })
+            end
+            if vim.api.nvim_win_is_valid(diff_win) then
+              vim.api.nvim_set_current_win(diff_win)
+            end
           end,
         },
       },
@@ -1284,7 +1339,9 @@ vim.cmd([[
   nnoremenu 1.51 PopUp.Paste <Cmd>lua __popup_run('paste')<CR>
   nnoremenu 1.52 PopUp.Select\ All <Cmd>lua __popup_run('select_all')<CR>
   nnoremenu 1.60 PopUp.-5- <Nop>
-  nnoremenu 1.61 PopUp.Git:\ LazyGit <Cmd>lua __popup_run('lazygit')<CR>
+  nnoremenu 1.61 PopUp.Git:\ Blame\ Line <Cmd>lua __popup_run('git_blame_line')<CR>
+  nnoremenu 1.62 PopUp.Git:\ File\ History <Cmd>lua __popup_run('git_file_history')<CR>
+  nnoremenu 1.63 PopUp.Git:\ LazyGit <Cmd>lua __popup_run('lazygit')<CR>
   nnoremenu 1.70 PopUp.-6- <Nop>
   nnoremenu 1.71 PopUp.Help <Cmd>lua __popup_run('cheatsheet')<CR>
 ]])
@@ -1313,7 +1370,11 @@ _G.__neotree_popup_action = function(name)
       return
     end
     local path = vim.fn.fnamemodify(node.path or node:get_id(), ':.')
-    if name == 'open_explorer' then
+    if name == 'copy_path' then
+      vim.fn.setreg('+', path)
+      vim.fn.setreg('"', path)
+      vim.notify('yank: ' .. path)
+    elseif name == 'open_explorer' then
       open_in_explorer(path)
     elseif name == 'run_format' then
       send_text_to_terminal('make format ' .. vim.fn.shellescape(path) .. '\n')
@@ -1331,6 +1392,17 @@ _G.__neotree_git_popup_cmd = function(name)
   local winid = vim.api.nvim_get_current_win()
   vim.schedule(function()
     local state = require('neo-tree.sources.manager').get_state('git_status', nil, winid)
+    if name == 'copy_path' then
+      local node = state and state.tree and state.tree:get_node()
+      if not node then
+        return
+      end
+      local path = vim.fn.fnamemodify(node.path or node:get_id(), ':.')
+      vim.fn.setreg('+', path)
+      vim.fn.setreg('"', path)
+      vim.notify('yank: ' .. path)
+      return
+    end
     local ok, common_commands = pcall(require, 'neo-tree.sources.common.commands')
     local fn = ok and common_commands[name]
     if fn then
@@ -1344,6 +1416,8 @@ vim.cmd([[
   nnoremenu 1.11 PopUpNeoTreeGit.Unstage\ File <Cmd>lua __neotree_git_popup_cmd('git_unstage_file')<CR>
   nnoremenu 1.20 PopUpNeoTreeGit.-1- <Nop>
   nnoremenu 1.21 PopUpNeoTreeGit.Reset\ File <Cmd>lua __neotree_git_popup_cmd('git_revert_file')<CR>
+  nnoremenu 1.30 PopUpNeoTreeGit.-2- <Nop>
+  nnoremenu 1.31 PopUpNeoTreeGit.Copy\ Path <Cmd>lua __neotree_git_popup_cmd('copy_path')<CR>
 ]])
 
 vim.cmd([[
@@ -1353,7 +1427,7 @@ vim.cmd([[
   nnoremenu 1.21 PopUpNeoTree.Rename <Cmd>lua __neotree_popup_cmd('rename')<CR>
   nnoremenu 1.22 PopUpNeoTree.Delete <Cmd>lua __neotree_popup_cmd('delete')<CR>
   nnoremenu 1.30 PopUpNeoTree.-2- <Nop>
-  nnoremenu 1.31 PopUpNeoTree.Copy\ Path <Cmd>lua __neotree_popup_cmd('copy')<CR>
+  nnoremenu 1.31 PopUpNeoTree.Copy\ Path <Cmd>lua __neotree_popup_action('copy_path')<CR>
   nnoremenu 1.32 PopUpNeoTree.Copy\ to\ Clipboard <Cmd>lua __neotree_popup_cmd('copy_to_clipboard')<CR>
   nnoremenu 1.33 PopUpNeoTree.Cut\ to\ Clipboard <Cmd>lua __neotree_popup_cmd('cut_to_clipboard')<CR>
   nnoremenu 1.34 PopUpNeoTree.Paste <Cmd>lua __neotree_popup_cmd('paste_from_clipboard')<CR>
@@ -1373,6 +1447,10 @@ vim.keymap.set('n', '<RightMouse>', function()
     vim.api.nvim_set_current_win(mouse.winid)
     -- ターミナルパネルでは右クリックメニューを出さない(通常の右クリック挙動に任せる)
     if vim.bo.buftype == 'terminal' then
+      return
+    end
+    -- git_statusパネルから開いたdiff表示バッファでも右クリックメニューを出さない
+    if vim.api.nvim_buf_get_name(0):match('^diff://') then
       return
     end
     pcall(vim.api.nvim_win_set_cursor, mouse.winid, { mouse.line, math.max(mouse.column - 1, 0) })
