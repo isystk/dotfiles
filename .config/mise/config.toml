@@ -6,7 +6,6 @@ uv = "latest"
 gh = "latest"
 jq = "latest"
 neovim = "0.12.4"
-#php = ['8.2']
 go = ['1.21']
 php = "8.4.25"
 #ruby = ['3.2']
