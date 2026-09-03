@@ -15,6 +15,8 @@ Neovim設定
 - <C-p> / <Space><Space>   ファイル検索 (telescope)
 - <C-f>                    ファイル内検索 (telescope)
 - <C-r>                    置換 (ノーマル: バッファ全体 / ビジュアル: 選択範囲)
+- <leader>sr               検索/置換 (grug-far、プロジェクト横断)
+- <leader>;                パンくずをジャンプ選択 (dropbar)
 - <leader>fg               全文検索
 - <leader>fb               バッファ一覧
 - <leader>tc               ターミナル切替
@@ -31,9 +33,9 @@ Neovim設定
 
 起動モード:
 - nvim <ファイルパス>
-    通常起動。左にファイルツリー(neo-tree)、右にファイルを表示。
+    通常起動。ファイルツリー(neo-tree)は非表示 (<C-n>/<leader>eで手動表示)。
 - nvim --cmd 'let g:panels=1' <ファイルパス>
-    IDEレイアウトで起動。ターミナル・ClaudeCodeを含む複数パネルを展開する。
+    IDEレイアウトで起動。ターミナル・ClaudeCode・ファイルツリーを含む複数パネルを展開する。
 --]]
 
 -- ==========================================================
@@ -43,6 +45,20 @@ Neovim設定
 vim.opt.fileencodings = 'ucs-boms,utf-8,euc-jp,cp932'
 vim.opt.fileformats   = 'unix,dos,mac'
 vim.opt.termguicolors = true
+
+-- カレントディレクトリの.nvim.lua/.nvimrc/.exrcを自動読込する(他プロジェクトでも
+-- プロジェクト固有設定を上書き可能にするため)。任意コード実行を許すため信頼できる
+-- プロジェクトのみで使うこと(:h exrc, :h secure)
+vim.o.exrc = true
+
+-- カレントディレクトリに.nvim.luaが無い場合、init.luaと同じディレクトリの.nvim.lua
+-- (共通デフォルト設定。_G.__format_cmd等)をフォールバックとして読み込む
+if vim.fn.filereadable(vim.fn.getcwd() .. '/.nvim.lua') == 0 then
+  local fallback = vim.fn.stdpath('config') .. '/.nvim.lua'
+  if vim.fn.filereadable(fallback) == 1 then
+    dofile(fallback)
+  end
+end
 
 vim.g.mapleader = ' '
 
@@ -86,8 +102,19 @@ local function toggle_wsl_terminal()
   end
   vim.w[0].is_wsl_terminal = true
   vim.api.nvim_win_set_height(0, 15) -- 既定分割比率(50%)を15行固定へ矯正
+  -- sbufferでの再表示経路はTermOpenが発火しないため明示的にoff
+  vim.opt_local.number = false
+  vim.opt_local.relativenumber = false
 end
 vim.keymap.set('n', '<leader>tc', toggle_wsl_terminal, { desc = 'WSLターミナル切替' })
+
+-- ターミナルバッファでは行番号を非表示にする(:terminal新規起動時)
+vim.api.nvim_create_autocmd('TermOpen', {
+  callback = function()
+    vim.opt_local.number = false
+    vim.opt_local.relativenumber = false
+  end,
+})
 
 -- OSのファイルマネージャーでパスを開く(mac: open / WSL: explorer.exe)。
 -- `open`はmacOS専用コマンドのためWSLには存在せず無反応になる。WSLではWindows側パスへ
@@ -101,6 +128,51 @@ local function open_in_explorer(path)
     vim.fn.system('explorer.exe ' .. vim.fn.shellescape(win_path))
   else
     vim.notify('Open Explorer: mac/WSL以外は未対応', vim.log.levels.WARN)
+  end
+end
+
+-- 指定パスをGitHub上でブラウザ表示する。リモートURL(origin)をhttps形式へ正規化し、
+-- 現在ブランチ・リポジトリルートからの相対パスを組み立ててOSデフォルトブラウザで開く。
+-- line指定時(ファイルのみ想定)は該当行にアンカーする。ディレクトリはtree、ファイルはblob表示
+local function open_github(path, line)
+  local abs_path = vim.fn.fnamemodify(path, ':p')
+  if abs_path == '' or vim.fn.filereadable(abs_path) == 0 and vim.fn.isdirectory(abs_path) == 0 then
+    vim.notify('Open Github: 対象パスがありません', vim.log.levels.WARN)
+    return
+  end
+  local dir = vim.fn.isdirectory(abs_path) == 1 and abs_path or vim.fn.fnamemodify(abs_path, ':h')
+  local function git(args)
+    local out = vim.fn.system('git -C ' .. vim.fn.shellescape(dir) .. ' ' .. args)
+    if vim.v.shell_error ~= 0 then
+      return nil
+    end
+    return vim.trim(out)
+  end
+  local toplevel = git('rev-parse --show-toplevel')
+  local remote_url = git('config --get remote.origin.url')
+  local branch = git('rev-parse --abbrev-ref HEAD')
+  if not (toplevel and remote_url and branch) then
+    vim.notify('Open Github: gitリポジトリ情報の取得に失敗しました', vim.log.levels.ERROR)
+    return
+  end
+  -- git@github.com:user/repo.git / https://github.com/user/repo.git 双方をhttps形式へ統一
+  local repo = remote_url:match('github%.com[:/](.-)%.git$') or remote_url:match('github%.com[:/](.-)$')
+  if not repo then
+    vim.notify('Open Github: GitHubリモートではありません: ' .. remote_url, vim.log.levels.ERROR)
+    return
+  end
+  local rel_path = abs_path:sub(#toplevel + 2)
+  local kind = vim.fn.isdirectory(abs_path) == 1 and 'tree' or 'blob'
+  local url = string.format('https://github.com/%s/%s/%s/%s', repo, kind, branch, rel_path)
+  if line then
+    url = url .. '#L' .. line
+  end
+  if vim.fn.has('mac') == 1 then
+    vim.fn.system('open ' .. vim.fn.shellescape(url))
+  elseif vim.env.WSL_DISTRO_NAME then
+    vim.fn.system('explorer.exe ' .. vim.fn.shellescape(url))
+  else
+    vim.notify('Open Github: mac/WSL以外は未対応', vim.log.levels.WARN)
   end
 end
 
@@ -370,6 +442,23 @@ require('lazy').setup({
     ft = 'markdown',
     opts = {},
   },
+  {
+    'petertriho/nvim-scrollbar',
+    dependencies = { 'lewis6991/gitsigns.nvim' },
+    opts = {
+      handlers = {
+        gitsigns = true, -- gitsigns.nvimの変更箇所をスクロールバーへマーク表示
+      },
+    },
+  },
+  {
+    'Bekaboo/dropbar.nvim', -- パンくずリスト(winbar)
+    event = 'BufReadPost', -- 初期表示からwinbarへパンくずを出すため即時ロード
+    opts = {},
+    keys = {
+      { '<leader>;', function() require('dropbar.api').pick() end, desc = 'Dropbar: パンくずをジャンプ選択' },
+    },
+  },
 
   -- --- 開発サポート ---
   {
@@ -447,6 +536,26 @@ require('lazy').setup({
     opts = {}, -- コンフリクトマーカーのハイライトとco/ct/cb/c0(ours/theirs/both/none選択)・]x/[x(次/前へ移動)を有効化
   },
   {
+    'lewis6991/gitsigns.nvim',
+    opts = {
+      current_line_blame = true, -- カーソル行の最終コミット情報(日時・作成者・要約)を行末に透かし表示
+      current_line_blame_opts = {
+        delay = 300,
+      },
+      current_line_blame_formatter = '<author>, <author_time:%Y-%m-%d %H:%M> - <summary>',
+    },
+  },
+  {
+    'MagicDuck/grug-far.nvim', -- 検索/置換(プロジェクト横断)
+    opts = {
+      windowCreationCommand = [[lua vim.api.nvim_open_win(0, true, {relative='editor', width=math.floor(vim.o.columns*0.8), height=math.floor(vim.o.lines*0.8), row=math.floor(vim.o.lines*0.1), col=math.floor(vim.o.columns*0.1), style='minimal', border='rounded'})]],
+    },
+    cmd = 'GrugFar',
+    keys = {
+      { '<leader>sr', '<cmd>GrugFar<cr>', desc = 'grug-far: 検索/置換' },
+    },
+  },
+  {
     'kdheepak/lazygit.nvim',
     dependencies = { 'nvim-lua/plenary.nvim' },
     cmd = { 'LazyGit', 'LazyGitFilterCurrentFile' },
@@ -465,16 +574,14 @@ require('lazy').setup({
   {
     'mason-org/mason-lspconfig.nvim',
     dependencies = { 'mason-org/mason.nvim', 'neovim/nvim-lspconfig', 'saghen/blink.cmp' },
-    opts = {
-      ensure_installed = { 'ts_ls', 'intelephense', 'html', 'cssls', 'jsonls' },
-      handlers = {
-        function(server_name)
-          require('lspconfig')[server_name].setup({
-            capabilities = require('blink.cmp').get_lsp_capabilities(),
-          })
-        end,
-      },
-    },
+    config = function()
+      vim.lsp.config('*', {
+        capabilities = require('blink.cmp').get_lsp_capabilities(),
+      })
+      require('mason-lspconfig').setup({
+        ensure_installed = { 'ts_ls', 'phpactor', 'html', 'cssls', 'jsonls' },
+      })
+    end,
   },
   {
     'neovim/nvim-lspconfig',
@@ -596,7 +703,7 @@ require('lazy').setup({
           hidden_diff_file_path = data.file_path
           local neotree_win = nil
           for _, win in ipairs(vim.api.nvim_list_wins()) do
-            if vim.api.nvim_buf_get_option(vim.api.nvim_win_get_buf(win), 'filetype') == 'neo-tree' then
+            if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == 'neo-tree' then
               neotree_win = win
               break
             end
@@ -625,8 +732,8 @@ require('lazy').setup({
               -- 適当なウィンドウを探して代用する
               for _, win in ipairs(vim.api.nvim_list_wins()) do
                 local buf = vim.api.nvim_win_get_buf(win)
-                local buftype = vim.api.nvim_buf_get_option(buf, 'buftype')
-                local ft = vim.api.nvim_buf_get_option(buf, 'filetype')
+                local buftype = vim.bo[buf].buftype
+                local ft = vim.bo[buf].filetype
                 if buftype ~= 'terminal' and ft ~= 'neo-tree' then
                   file_win = win
                   break
@@ -641,7 +748,7 @@ require('lazy').setup({
               -- 分割時に幅・表示モードが崩れるため、先にneo-tree以外へ退避する
               if vim.bo.filetype == 'neo-tree' then
                 for _, win in ipairs(vim.api.nvim_list_wins()) do
-                  if vim.api.nvim_buf_get_option(vim.api.nvim_win_get_buf(win), 'filetype') ~= 'neo-tree' then
+                  if vim.bo[vim.api.nvim_win_get_buf(win)].filetype ~= 'neo-tree' then
                     vim.api.nvim_set_current_win(win)
                     break
                   end
@@ -710,7 +817,7 @@ require('lazy').setup({
           end
           vim.schedule(function()
             for _, win in ipairs(vim.api.nvim_list_wins()) do
-              if vim.api.nvim_buf_get_option(vim.api.nvim_win_get_buf(win), 'filetype') == 'neo-tree' then
+              if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == 'neo-tree' then
                 pcall(vim.api.nvim_win_set_width, win, width)
                 break
               end
@@ -815,6 +922,7 @@ require('lazy').setup({
     opts = {
       close_if_last_window = true,
       filesystem = {
+        hijack_netrw_behavior = 'disabled', -- ディレクトリ引数起動時のneo-tree自動オープンを止める(デフォルト非表示)
         filtered_items = {
           visible = true, -- 隠しファイルも表示 (旧NERDTreeShowHidden相当)
         },
@@ -843,7 +951,8 @@ require('lazy').setup({
             end
             local path = node.path or node:get_id()
 
-            -- 起動時にマークした専用ファイルウィンドウがあれば優先
+            -- ファイル表示パネル(専用ウィンドウ、無ければneo-tree/ターミナル以外の
+            -- 最初の通常ウィンドウ)にも選択ファイルを通常表示させる
             local target_win
             for _, win in ipairs(vim.api.nvim_list_wins()) do
               if vim.api.nvim_win_is_valid(win) and vim.w[win].is_file_win then
@@ -851,7 +960,6 @@ require('lazy').setup({
                 break
               end
             end
-            -- 無ければneo-tree・ターミナル以外の最初の通常ウィンドウを使う
             if not target_win then
               for _, win in ipairs(vim.api.nvim_list_wins()) do
                 local buf = vim.api.nvim_win_get_buf(win)
@@ -861,52 +969,107 @@ require('lazy').setup({
                 end
               end
             end
-
-            -- 通常表示ではなく変更差分(HEADとの差分)をdiffバッファとして表示する。
-            -- 追跡外ファイルはHEADとの差分が取れないため、新規ファイル全体を追加差分として生成する。
-            local diff_output = vim.fn.systemlist({ 'git', 'diff', 'HEAD', '--', path })
-            if #diff_output == 0 then
-              diff_output = vim.fn.systemlist({ 'git', 'diff', '--no-index', '--', '/dev/null', path })
+            if target_win and vim.api.nvim_win_is_valid(target_win) then
+              vim.api.nvim_win_call(target_win, function()
+                vim.cmd('edit ' .. vim.fn.fnameescape(path))
+              end)
             end
 
-            -- diff生成中(systemlist)や別バッファのBufDelete等の副作用でウィンドウが
-            -- 閉じられ、ここまでの間にtarget_winが無効化されるケースがあるため直前に再検証する
-            if target_win and not vim.api.nvim_win_is_valid(target_win) then
-              target_win = nil
+            -- HEAD時点の内容(左)とワーキングツリーの内容(右)をfloatの左右splitで
+            -- 比較表示する。`git show HEAD:relpath`はgitルートからの相対パスが必要なため
+            -- 変換する。新規/追跡外ファイル等HEADに存在しない場合は左を空として扱う。
+            local git_root = vim.fn.systemlist({
+              'git', '-C', vim.fn.fnamemodify(path, ':h'), 'rev-parse', '--show-toplevel',
+            })[1]
+            local relpath = path
+            if vim.v.shell_error == 0 and git_root and git_root ~= '' then
+              relpath = path:sub(#git_root + 2)
             end
 
-            if target_win then
-              vim.api.nvim_set_current_win(target_win)
+            local head_content = vim.fn.systemlist({ 'git', 'show', 'HEAD:' .. relpath })
+            if vim.v.shell_error ~= 0 then
+              head_content = {}
             end
+            local work_content = vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {}
 
-            if #diff_output == 0 then
-              -- 差分が取得できない場合(変更なしファイル等)は通常表示にフォールバック
-              vim.cmd('edit ' .. vim.fn.fnameescape(path))
+            if #head_content == 0 and #work_content == 0 then
+              vim.notify('差分を表示できません: ' .. path, vim.log.levels.WARN)
               return
             end
 
-            local buf_name = 'diff://' .. path
-            local existing = vim.fn.bufnr(buf_name)
-            if existing ~= -1 then
-              vim.api.nvim_buf_delete(existing, { force = true })
+            -- 前回開いたdiff floatが残っていれば閉じてから新規に開く
+            if _G.__git_status_diff_wins then
+              pcall(vim.api.nvim_win_close, _G.__git_status_diff_wins.left, true)
+              pcall(vim.api.nvim_win_close, _G.__git_status_diff_wins.right, true)
+              _G.__git_status_diff_wins = nil
             end
-            local buf = vim.api.nvim_create_buf(false, true)
-            vim.api.nvim_buf_set_name(buf, buf_name)
-            vim.api.nvim_buf_set_lines(buf, 0, -1, false, diff_output)
-            vim.bo[buf].filetype = 'diff'
-            vim.bo[buf].buftype = 'nofile'
-            vim.bo[buf].bufhidden = 'wipe'
-            vim.bo[buf].swapfile = false
-            vim.bo[buf].modifiable = false
-            if target_win and not vim.api.nvim_win_is_valid(target_win) then
-              target_win = nil
+
+            local buf_left = vim.api.nvim_create_buf(false, true)
+            local buf_right = vim.api.nvim_create_buf(false, true)
+            for _, buf in ipairs({ buf_left, buf_right }) do
+              vim.bo[buf].buftype = 'nofile'
+              vim.bo[buf].bufhidden = 'wipe'
             end
-            vim.api.nvim_win_set_buf(target_win or 0, buf)
+            pcall(vim.api.nvim_buf_set_name, buf_left, 'diff://head/' .. path)
+            pcall(vim.api.nvim_buf_set_name, buf_right, 'diff://working/' .. path)
+            vim.api.nvim_buf_set_lines(buf_left, 0, -1, false, head_content)
+            vim.api.nvim_buf_set_lines(buf_right, 0, -1, false, work_content)
+            local ft = vim.filetype.match({ filename = path })
+            if ft then
+              vim.bo[buf_left].filetype = ft
+              vim.bo[buf_right].filetype = ft
+            end
+
+            local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
+            local total_width = math.min(math.max(math.floor(ui.width * 0.9), 60), 200)
+            local max_lines = math.max(#head_content, #work_content)
+            local height = math.min(math.max(max_lines + 2, 10), math.floor(ui.height * 0.8))
+            local width = math.floor((total_width - 1) / 2)
+            local row = math.floor((ui.height - height) / 2)
+            local col = math.floor((ui.width - total_width) / 2)
+
+            local win_left = vim.api.nvim_open_win(buf_left, true, {
+              relative = 'editor',
+              style = 'minimal',
+              border = 'rounded',
+              width = width,
+              height = height,
+              row = row,
+              col = col,
+              title = ' HEAD ',
+              title_pos = 'center',
+            })
+            local win_right = vim.api.nvim_open_win(buf_right, true, {
+              relative = 'editor',
+              style = 'minimal',
+              border = 'rounded',
+              width = width,
+              height = height,
+              row = row,
+              col = col + width + 2,
+              title = ' Working Tree ',
+              title_pos = 'center',
+            })
+            _G.__git_status_diff_wins = { left = win_left, right = win_right }
+
+            vim.api.nvim_win_call(win_left, function() vim.cmd('diffthis') end)
+            vim.api.nvim_win_call(win_right, function() vim.cmd('diffthis') end)
+            vim.wo[win_left].wrap = false
+            vim.wo[win_right].wrap = false
+
+            local function close_both()
+              pcall(vim.api.nvim_win_close, win_left, true)
+              pcall(vim.api.nvim_win_close, win_right, true)
+              _G.__git_status_diff_wins = nil
+            end
+            for _, buf in ipairs({ buf_left, buf_right }) do
+              vim.keymap.set('n', 'q', close_both, { buffer = buf, silent = true, nowait = true })
+              vim.keymap.set('n', '<Esc>', close_both, { buffer = buf, silent = true, nowait = true })
+            end
 
             -- filesystemパネル側でも同じファイルをreveal(ハイライト)する。
             -- action='focus'はneo-treeウィンドウへフォーカスを奪うため、reveal後は
-            -- diffバッファ側のウィンドウへフォーカスを戻す
-            local diff_win = vim.api.nvim_get_current_win()
+            -- Working Tree側のfloatへフォーカスを戻す
             local ok_cmd, neotree_command = pcall(require, 'neo-tree.command')
             if ok_cmd then
               neotree_command.execute({
@@ -918,8 +1081,8 @@ require('lazy').setup({
                 reveal_force_cwd = true,
               })
             end
-            if vim.api.nvim_win_is_valid(diff_win) then
-              vim.api.nvim_set_current_win(diff_win)
+            if vim.api.nvim_win_is_valid(win_right) then
+              vim.api.nvim_set_current_win(win_right)
             end
           end,
         },
@@ -1018,8 +1181,8 @@ require('lazy').setup({
         group = augroup,
         callback = function()
           -- 起動時 --cmd "let g:panels=1" 指定時のみ複数パネル(ClaudeCode+ターミナル+Neotree)を展開する
+          -- 通常起動時はNeo-treeをデフォルト非表示にする(<C-n>/<leader>eで手動表示)
           if vim.g.panels ~= 1 then
-            _G.__open_neotree_panels()
             vim.cmd('stopinsert')
             return
           end
@@ -1050,6 +1213,9 @@ require('lazy').setup({
             vim.cmd('terminal')
             vim.w[0].is_wsl_terminal = true -- diff表示時の一時非表示/再表示で識別するためのマーカー
             vim.api.nvim_win_set_height(0, 15)
+            -- terminal直接呼出しはTermOpenで効かないため明示的にoff
+            vim.opt_local.number = false
+            vim.opt_local.relativenumber = false
             vim.api.nvim_set_current_win(file_win)
           else
             local file_win = vim.api.nvim_get_current_win()
@@ -1081,14 +1247,20 @@ require('lazy').setup({
           if vim.fn.isdirectory(bufname) == 1 then
             return
           end
+          -- neo-treeが非表示の場合はreveal自体を行わない(action='show'は閉じていても
+          -- 強制的にツリーを開くため、デフォルト非表示の意図を壊してしまう)
+          local fs_state = require('neo-tree.sources.manager').get_state('filesystem')
+          local tree_open = fs_state and fs_state.winid and vim.api.nvim_win_is_valid(fs_state.winid)
+          if not tree_open then
+            return
+          end
           -- カレントのneo-tree cwd配下のファイルのみreveal。cwd外のファイルはcwdを
           -- 強制変更せず、確認ダイアログも出さず、revealだけスキップしてツリーはそのまま保つ
-          local fs_state = require('neo-tree.sources.manager').get_state('filesystem')
           require('neo-tree.command').execute({
             action = 'show',
             reveal = true,
             reveal_force_cwd = false,
-            dir = fs_state and fs_state.path,
+            dir = fs_state.path,
           })
         end,
       })
@@ -1172,9 +1344,9 @@ vim.opt.virtualedit = 'block'
 vim.opt.laststatus  = 2
 vim.opt.equalalways = false
 
--- 外部(Claude Code等)によるファイル変更を自動検知して再読込する
+-- 外部(Claude Code、git reset等)によるファイル変更を自動検知して再読込する
 vim.opt.autoread = true
-vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'WinEnter', 'CursorHold', 'CursorHoldI', 'TermLeave' }, {
   command = 'checktime',
 })
 
@@ -1240,6 +1412,10 @@ vim.cmd('colorscheme molokai')
 -- 事前にruntimeしてロードした上で、既定メニューを丸ごと外し実用的な構成に作り直す。
 vim.cmd('runtime! menu.vim')
 vim.cmd('silent! aunmenu PopUp')
+-- Neovim組み込みのMenuPopup autocmd(nvim.popupmenu augroup)が既定PopUp項目名
+-- (Go to definition等)をenable/disableしようとするが、上でメニューを作り直したため
+-- 項目が存在せずE329エラーになる。組み込みautocmdごと無効化する。
+pcall(vim.api.nvim_del_augroup_by_name, 'nvim.popupmenu')
 
 -- menu選択時のコールバックはpopup表示中(textlock)の同期コンテキストで実行され、その中で
 -- テキスト変更・ウィンドウ生成を行うとE565(Not allowed to change text or change window)になるため、
@@ -1271,23 +1447,126 @@ _G.__popup_actions = {
   open_explorer = function()
     open_in_explorer(vim.fn.expand('%:.'))
   end,
-  -- Run Format/Run Test は `make format <path>` / `make test <path>` をカレントディレクトリの
-  -- Makefile経由で実行する想定。対象パス配下(または上位)にMakefileが存在しない場合は動作しない
+  open_github = function()
+    open_github(vim.fn.expand('%:p'), vim.api.nvim_win_get_cursor(0)[1])
+  end,
+  -- Run Format/Run Test の実行コマンドは_G.__format_cmd/_G.__test_cmd(.nvim.luaで
+  -- プロジェクト毎に定義。未定義時は何もしない)を使う
   run_format = function()
-    send_text_to_terminal('make format ' .. vim.fn.shellescape(vim.fn.expand('%:.')) .. '\n')
+    if not _G.__format_cmd then
+      vim.notify('_G.__format_cmd が未設定です(.nvim.lua参照)', vim.log.levels.WARN)
+      return
+    end
+    send_text_to_terminal(_G.__format_cmd .. ' ' .. vim.fn.shellescape(vim.fn.expand('%:.')) .. '\n')
   end,
   run_test = function()
-    send_text_to_terminal('make test ' .. vim.fn.shellescape(vim.fn.expand('%:.')) .. '\n')
+    if not _G.__test_cmd then
+      vim.notify('_G.__test_cmd が未設定です(.nvim.lua参照)', vim.log.levels.WARN)
+      return
+    end
+    send_text_to_terminal(_G.__test_cmd .. ' ' .. vim.fn.shellescape(vim.fn.expand('%:.')) .. '\n')
   end,
   paste = function() vim.cmd('normal! "+gP') end,
   select_all = function() vim.cmd('normal! ggVG') end,
+  -- Visualモードで確定した選択範囲('<,'>マーク)とクリップボード(+レジスタ)を
+  -- 新規タブの左右split(diffthis)で比較表示する。
+  compare_clipboard = function()
+    -- <Cmd>マッピングはVisualモードを保持したまま実行されるため、'<,'>マークが
+    -- 未確定(直前の古い値)のままになる場合がある(初回のみ失敗する原因)。
+    -- Visual中ならEscでモードを抜けマークを確定させてから読む。
+    if vim.fn.mode():match('^[vV\22]') then
+      vim.cmd('normal! \27')
+    end
+    local start_pos = vim.fn.getpos("'<")
+    local end_pos = vim.fn.getpos("'>")
+    if start_pos[2] == 0 or end_pos[2] == 0 then
+      vim.notify('比較対象の選択範囲が取得できません', vim.log.levels.WARN)
+      return
+    end
+    local lines = vim.fn.getline(start_pos[2], end_pos[2])
+    if vim.fn.visualmode() == 'v' and #lines > 0 then
+      lines[#lines] = lines[#lines]:sub(1, end_pos[3])
+      lines[1] = lines[1]:sub(start_pos[3])
+    end
+    local selected = table.concat(lines, '\n') .. '\n'
+
+    local clipboard = vim.fn.getreg('+')
+    if clipboard == '' then
+      vim.notify('クリップボードが空です', vim.log.levels.WARN)
+      return
+    end
+    if not clipboard:match('\n$') then
+      clipboard = clipboard .. '\n'
+    end
+
+    local diff = vim.diff(clipboard, selected, { result_type = 'unified', ctxlen = 3 })
+    if not diff or diff == '' then
+      vim.notify('クリップボードと選択範囲は同一です')
+      return
+    end
+
+    local buf_left = vim.api.nvim_create_buf(false, true)
+    local buf_right = vim.api.nvim_create_buf(false, true)
+    for _, buf in ipairs({ buf_left, buf_right }) do
+      vim.bo[buf].buftype = 'nofile'
+      vim.bo[buf].bufhidden = 'wipe'
+    end
+    pcall(vim.api.nvim_buf_set_name, buf_left, 'diff://clipboard')
+    pcall(vim.api.nvim_buf_set_name, buf_right, 'diff://selection')
+    vim.api.nvim_buf_set_lines(buf_left, 0, -1, false, vim.split(clipboard, '\n'))
+    vim.api.nvim_buf_set_lines(buf_right, 0, -1, false, vim.split(selected, '\n'))
+
+    local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
+    local total_width = math.min(math.max(math.floor(ui.width * 0.9), 60), 200)
+    local max_lines = math.max(#vim.split(clipboard, '\n'), #vim.split(selected, '\n'))
+    local height = math.min(math.max(max_lines + 2, 10), math.floor(ui.height * 0.8))
+    local width = math.floor((total_width - 1) / 2)
+    local row = math.floor((ui.height - height) / 2)
+    local col = math.floor((ui.width - total_width) / 2)
+
+    local win_left = vim.api.nvim_open_win(buf_left, true, {
+      relative = 'editor',
+      style = 'minimal',
+      border = 'rounded',
+      width = width,
+      height = height,
+      row = row,
+      col = col,
+      title = ' Clipboard ',
+      title_pos = 'center',
+    })
+    local win_right = vim.api.nvim_open_win(buf_right, true, {
+      relative = 'editor',
+      style = 'minimal',
+      border = 'rounded',
+      width = width,
+      height = height,
+      row = row,
+      col = col + width + 2,
+      title = ' Selection ',
+      title_pos = 'center',
+    })
+
+    vim.api.nvim_win_call(win_left, function() vim.cmd('diffthis') end)
+    vim.api.nvim_win_call(win_right, function() vim.cmd('diffthis') end)
+    vim.wo[win_left].wrap = false
+    vim.wo[win_right].wrap = false
+
+    -- q または Esc で両方のフロートを閉じる(スクラッチバッファなのでbufhidden=wipeで自動破棄される)
+    local function close_both()
+      pcall(vim.api.nvim_win_close, win_left, true)
+      pcall(vim.api.nvim_win_close, win_right, true)
+    end
+    for _, buf in ipairs({ buf_left, buf_right }) do
+      vim.keymap.set('n', 'q', close_both, { buffer = buf, silent = true, nowait = true })
+      vim.keymap.set('n', '<Esc>', close_both, { buffer = buf, silent = true, nowait = true })
+    end
+  end,
   -- Stage/UnstageはLazyGitの操作段数が多く実用的でないため、gitコマンドを直接叩く
   git_stage_file = function() __git_file_cmd('add') end,
   git_unstage_file = function() __git_file_cmd('reset') end,
   -- Diff/Blame/HistoryはLazyGit経由(fugitive等を未導入のため)。開いた後はLazyGit側の
   -- キー操作(コミット選択→d でdiff、b でblame等)で該当情報まで辿る
-  git_diff_file = function() vim.cmd('LazyGit') end,
-  git_blame_line = function() vim.cmd('LazyGitFilterCurrentFile') end,
   git_file_history = function() vim.cmd('LazyGitFilterCurrentFile') end,
   lazygit = function() vim.cmd('LazyGit') end,
   cheatsheet = function() _G.__show_cheatsheet() end,
@@ -1333,17 +1612,25 @@ vim.cmd([[
   nnoremenu 1.43 PopUp.Reveal\ in\ Tree <Cmd>lua __popup_run('reveal_in_tree')<CR>
   nnoremenu 1.44 PopUp.-3a- <Nop>
   nnoremenu 1.45 PopUp.Open\ Explorer <Cmd>lua __popup_run('open_explorer')<CR>
-  nnoremenu 1.46 PopUp.Run\ Format <Cmd>lua __popup_run('run_format')<CR>
-  nnoremenu 1.47 PopUp.Run\ Test <Cmd>lua __popup_run('run_test')<CR>
+  nnoremenu 1.46 PopUp.Open\ Github <Cmd>lua __popup_run('open_github')<CR>
+  nnoremenu 1.47 PopUp.Run\ Format <Cmd>lua __popup_run('run_format')<CR>
+  nnoremenu 1.48 PopUp.Run\ Test <Cmd>lua __popup_run('run_test')<CR>
   nnoremenu 1.50 PopUp.-4- <Nop>
   nnoremenu 1.51 PopUp.Paste <Cmd>lua __popup_run('paste')<CR>
   nnoremenu 1.52 PopUp.Select\ All <Cmd>lua __popup_run('select_all')<CR>
   nnoremenu 1.60 PopUp.-5- <Nop>
-  nnoremenu 1.61 PopUp.Git:\ Blame\ Line <Cmd>lua __popup_run('git_blame_line')<CR>
   nnoremenu 1.62 PopUp.Git:\ File\ History <Cmd>lua __popup_run('git_file_history')<CR>
   nnoremenu 1.63 PopUp.Git:\ LazyGit <Cmd>lua __popup_run('lazygit')<CR>
   nnoremenu 1.70 PopUp.-6- <Nop>
   nnoremenu 1.71 PopUp.Help <Cmd>lua __popup_run('cheatsheet')<CR>
+
+  " ビジュアルモード専用メニュー(選択範囲に対するクリップボード操作のみ)。
+  " PopUp本体はnnoremenu(Normal専用)項目主体のため、Visualモードで開くと
+  " 無効項目のセパレータだけが残り余白だらけになる問題を避けるため別メニューにする。
+  vnoremenu 1.10 PopUpVisual.Copy\ to\ Clipboard "+y
+  vnoremenu 1.11 PopUpVisual.Cut\ to\ Clipboard  "+d
+  vnoremenu 1.12 PopUpVisual.Paste                "+p
+  vnoremenu 1.13 PopUpVisual.Compare\ with\ Clipboard <Cmd>lua __popup_run('compare_clipboard')<CR>
 ]])
 
 -- neo-tree用: ファイル操作コマンドをカーソル位置ノードに対して実行する共通ヘルパー(同じくschedule必須)
@@ -1360,8 +1647,8 @@ _G.__neotree_popup_cmd = function(name)
 end
 
 -- neo-tree用: Open Explorer/Run Format/Run Test。対象はカーソル位置ノードの相対パス。
--- Run Format/Run Test は `make format <path>` / `make test <path>` をカレントディレクトリの
--- Makefile経由で実行する想定。対象パス配下(または上位)にMakefileが存在しない場合は動作しない
+-- Run Format/Run Testの実行コマンドは_G.__format_cmd/_G.__test_cmd(.nvim.luaでプロジェクト
+-- 毎に定義。未定義時は何もしない)を使う
 _G.__neotree_popup_action = function(name)
   vim.schedule(function()
     local state = require('neo-tree.sources.manager').get_state('filesystem')
@@ -1376,10 +1663,20 @@ _G.__neotree_popup_action = function(name)
       vim.notify('yank: ' .. path)
     elseif name == 'open_explorer' then
       open_in_explorer(path)
+    elseif name == 'open_github' then
+      open_github(path)
     elseif name == 'run_format' then
-      send_text_to_terminal('make format ' .. vim.fn.shellescape(path) .. '\n')
+      if not _G.__format_cmd then
+        vim.notify('_G.__format_cmd が未設定です(.nvim.lua参照)', vim.log.levels.WARN)
+        return
+      end
+      send_text_to_terminal(_G.__format_cmd .. ' ' .. vim.fn.shellescape(path) .. '\n')
     elseif name == 'run_test' then
-      send_text_to_terminal('make test ' .. vim.fn.shellescape(path) .. '\n')
+      if not _G.__test_cmd then
+        vim.notify('_G.__test_cmd が未設定です(.nvim.lua参照)', vim.log.levels.WARN)
+        return
+      end
+      send_text_to_terminal(_G.__test_cmd .. ' ' .. vim.fn.shellescape(path) .. '\n')
     end
   end)
 end
@@ -1433,34 +1730,52 @@ vim.cmd([[
   nnoremenu 1.34 PopUpNeoTree.Paste <Cmd>lua __neotree_popup_cmd('paste_from_clipboard')<CR>
   nnoremenu 1.40 PopUpNeoTree.-3- <Nop>
   nnoremenu 1.41 PopUpNeoTree.Open\ Explorer <Cmd>lua __neotree_popup_action('open_explorer')<CR>
-  nnoremenu 1.42 PopUpNeoTree.Run\ Format <Cmd>lua __neotree_popup_action('run_format')<CR>
-  nnoremenu 1.43 PopUpNeoTree.Run\ Test <Cmd>lua __neotree_popup_action('run_test')<CR>
+  nnoremenu 1.42 PopUpNeoTree.Open\ Github <Cmd>lua __neotree_popup_action('open_github')<CR>
+  nnoremenu 1.43 PopUpNeoTree.Run\ Format <Cmd>lua __neotree_popup_action('run_format')<CR>
+  nnoremenu 1.44 PopUpNeoTree.Run\ Test <Cmd>lua __neotree_popup_action('run_test')<CR>
 ]])
 
 -- mousemodelのpopup_setpos任せだとクリック位置へカーソルが移動し切らずGrep Word等が
 -- <cword>を取得できない場合があるため、右クリック時に明示的にカーソルを移動してからメニューを開く。
 -- neo-treeバッファ上ではファイル操作用の別メニュー(PopUpNeoTree/PopUpNeoTreeGit)を開く。
 -- filesystem/git_statusは同じfiletype='neo-tree'のため、バッファ変数neo_tree_sourceで判別する
-vim.keymap.set('n', '<RightMouse>', function()
-  local mouse = vim.fn.getmousepos()
-  if mouse.winid ~= 0 then
-    vim.api.nvim_set_current_win(mouse.winid)
-    -- ターミナルパネルでは右クリックメニューを出さない(通常の右クリック挙動に任せる)
-    if vim.bo.buftype == 'terminal' then
-      return
+-- <RightRelease>(離上)でメニューを開くと、そのイベント自体が即座にメニューへの
+-- クリックとして扱われ全項目で開いた瞬間に閉じてしまったため、押下側の<RightMouse>に戻す。
+-- ただし即時にpopupを開くと対応する<RightRelease>がまだ処理待ちのままメニューに
+-- click-throughして即座に閉じるため、vim.scheduleで1ティック遅延させてから開く。
+-- <RightRelease>を素通しするとpopup表示直後のreleaseが「離した位置の項目を
+-- 選択」動作(press-drag-release型選択)として処理され、カーソル位置の項目が
+-- 誤実行される。releaseイベント自体を無害化する。
+vim.keymap.set({ 'n', 'v' }, '<RightRelease>', '<Nop>')
+vim.keymap.set({ 'n', 'v' }, '<RightMouse>', function()
+  -- Visualモード中はカーソル移動・ウィンドウ切替を行うと選択範囲(gv対象)が
+  -- クリック位置基準に壊れ、その後のCopy/Cut/Pasteが選択範囲に効かなくなるためスキップする。
+  local is_visual = vim.fn.mode():match('^[vV\22]') ~= nil
+  if not is_visual then
+    local mouse = vim.fn.getmousepos()
+    if mouse.winid ~= 0 then
+      vim.api.nvim_set_current_win(mouse.winid)
+      -- ターミナルパネルでは右クリックメニューを出さない(通常の右クリック挙動に任せる)
+      if vim.bo.buftype == 'terminal' then
+        return
+      end
+      -- git_statusパネルから開いたdiff表示バッファでも右クリックメニューを出さない
+      if vim.api.nvim_buf_get_name(0):match('^diff://') then
+        return
+      end
+      pcall(vim.api.nvim_win_set_cursor, mouse.winid, { mouse.line, math.max(mouse.column - 1, 0) })
     end
-    -- git_statusパネルから開いたdiff表示バッファでも右クリックメニューを出さない
-    if vim.api.nvim_buf_get_name(0):match('^diff://') then
-      return
-    end
-    pcall(vim.api.nvim_win_set_cursor, mouse.winid, { mouse.line, math.max(mouse.column - 1, 0) })
+  end
+  if is_visual then
+    vim.schedule(function() vim.cmd('popup PopUpVisual') end)
+    return
   end
   local menu = 'PopUp'
   if vim.bo.filetype == 'neo-tree' then
     local ok, source = pcall(vim.api.nvim_buf_get_var, 0, 'neo_tree_source')
     menu = (ok and source == 'git_status') and 'PopUpNeoTreeGit' or 'PopUpNeoTree'
   end
-  vim.cmd('popup ' .. menu)
+  vim.schedule(function() vim.cmd('popup ' .. menu) end)
 end, { desc = '右クリックメニュー(カーソル位置確定後に表示)' })
 
 -- ==========================================================
@@ -1525,15 +1840,16 @@ vim.keymap.set('n', '<C-Right>', '<C-i>', noremap_silent)
 -- ウィンドウ移動
 vim.keymap.set('n', '<S-Tab>', '<C-w>w', noremap_silent)
 
--- プラグイン用マッピング
-vim.keymap.set('n', ',df', ':Gdiff<CR>',   noremap_silent)
-vim.keymap.set('n', ',bl', ':Gblame<CR>',  noremap_silent)
 
--- チートシート(~/dotfiles/documents/cheatsheet.md)をフロートウィンドウで表示する。
--- 表示中バッファは使い捨て(bufhidden=wipe)にし、q/<Esc>で閉じられるようにする。
+-- チートシート(_G.__cheatsheet_path。.nvim.luaでプロジェクト毎に定義)をフロートウィンドウで
+-- 表示する。表示中バッファは使い捨て(bufhidden=wipe)にし、q/<Esc>で閉じられるようにする。
 -- 右クリックメニュー(PopUp.Cheatsheet)からも呼ぶためグローバル登録する
 _G.__show_cheatsheet = function()
-  local path = vim.fn.expand('~/dotfiles/documents/cheatsheet.md')
+  if not _G.__cheatsheet_path then
+    vim.notify('_G.__cheatsheet_path が未設定です(.nvim.lua参照)', vim.log.levels.WARN)
+    return
+  end
+  local path = vim.fn.expand(_G.__cheatsheet_path)
   if vim.fn.filereadable(path) == 0 then
     vim.notify('cheatsheet.mdが見つかりません: ' .. path, vim.log.levels.ERROR)
     return
@@ -1628,14 +1944,51 @@ end
 -- ==========================================================
 if vim.env.WSL_DISTRO_NAME then
   -- IME自動切替: InsertLeave(挿入モード終了)・WinLeave(分割ウィンドウ間移動)でIMEをオフへ切替
-  -- WSLから都度exeを起動する方式(im-select.exe等)はGetForegroundWindowの
-  -- 対象がずれ切替が効かないため、Windows側常駐スクリプト(windows/tools/ime-watcher.ps1)が
-  -- 監視するトリガーファイルを書き換えるだけにする(プロセス起動不要)
-  local ime_trigger_path = (vim.env.HOME or '') .. '/.nvim-ime-off-trigger'
+  -- 実際のIME操作(GetForegroundWindow等)はWindows側常駐スクリプト(windows/tools/ime-watcher.ps1)が
+  -- 行う。WSL側からexeを都度起動してIME操作自体を行う方式はGetForegroundWindowの対象がずれ
+  -- 切替が効かないため使わない。
+  -- \\wsl.localhost経由のファイルポーリングは高頻度なUNC越しアクセスが
+  -- WSL2の9pファイルシステム層に負荷をかけWSLイメージ破損を招くため、
+  -- WSL側はNamed Pipe(nvim-ime-off)へ1行書き込み通知するだけのpush型にする。
+  -- InsertLeave/WinLeaveの都度powershell.exeを起動すると起動オーバーヘッドで
+  -- 体感できる遅延が出るため、常駐させたpowershell.exeへjobsendで1行渡すだけにする。
+  local ime_notify_cmd = {
+    'powershell.exe',
+    '-NoProfile',
+    '-NonInteractive',
+    '-WindowStyle', 'Hidden',
+    '-Command',
+    [[
+    $p = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'nvim-ime-off', [System.IO.Pipes.PipeDirection]::Out)
+    $p.Connect(2000)
+    $w = New-Object System.IO.StreamWriter($p)
+    $w.AutoFlush = $true
+    while ($line = [Console]::In.ReadLine()) {
+      try { $w.WriteLine('off') } catch { break }
+    }
+    ]],
+  }
+  local ime_notify_job = vim.fn.jobstart(ime_notify_cmd)
+
+  -- ジョブが死んでいれば(Windows再起動・パイプ切断等)透過的に再起動する
+  local function ensure_ime_notify_job()
+    if ime_notify_job <= 0 or vim.fn.jobwait({ ime_notify_job }, 0)[1] ~= -1 then
+      ime_notify_job = vim.fn.jobstart(ime_notify_cmd)
+    end
+    return ime_notify_job
+  end
+
   vim.api.nvim_create_autocmd({ 'InsertLeave', 'WinLeave' }, {
     pattern = '*',
     callback = function()
-      pcall(vim.fn.writefile, {}, ime_trigger_path)
+      pcall(vim.fn.jobsend, ensure_ime_notify_job(), 'off\n')
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('VimLeavePre', {
+    once = true,
+    callback = function()
+      pcall(vim.fn.jobstop, ime_notify_job)
     end,
   })
 

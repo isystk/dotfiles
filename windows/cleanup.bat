@@ -10,11 +10,6 @@ if exist "%USERPROFILE%\.ideavimrc" (
     del "%USERPROFILE%\.ideavimrc"
 )
 
-if exist "%USERPROFILE%\.gitconfig" (
-    echo Deleting file link: .gitconfig
-    del "%USERPROFILE%\.gitconfig"
-)
-
 if exist "%USERPROFILE%\.wslconfig" (
     echo Deleting file link: .wslconfig
     del "%USERPROFILE%\.wslconfig"

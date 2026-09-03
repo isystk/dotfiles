@@ -32,6 +32,7 @@ Serenaツールを通さない）。
 * Same edit across many files: `replace_in_files` (use `dry_run` first, then apply all or a subset by occurrence id).
 * Renames and deletions of existing symbols: `rename_symbol` / `safe_delete_symbol` — reference-aware and atomic. On success, trust the result; do not re-read files or re-run builds just to confirm propagation.
 * Editing symbols you read via Serena MUST use Serena's editing tools, not built-in `Edit` — except the trivial-edit exception below.
+* **PHPDoc/docblock trap in `replace_symbol_body`**: the language server may or may not include a preceding docblock inside a method symbol's body range (language-dependent, confirmed on PHP/intelephense). Before replacing, check whether the `include_body=true` retrieval you read already contains the docblock. If it does, carry it over in the new body; if it doesn't, re-check after the edit that the docblock wasn't silently dropped. Never assume the docblock is safe outside the replaced range.
 
 ## When Serena Is Mandatory vs Optional
 

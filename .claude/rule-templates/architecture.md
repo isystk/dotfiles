@@ -6,6 +6,8 @@ alwaysApply: true
 # Architecture
 
 - レイヤーの責務を混ぜない（Controller/Presentation ⇔ Service/Domain ⇔ Repository/Infra）
+- ControllerやJob（バッチ処理単位）からRepositoryを直接参照しない。必ずServiceのメソッドを経由する
+- Jobのエントリポイント（handle等）は引数を取らない設計とし、Serviceの解決はDIコンテナ経由でメソッド本体の中で行う
 - ビジネスロジックはフレームワーク非依存の層（Service/Domain）に置き、フレームワーク固有APIに依存させない
 - 循環依存を作らない。上位層は下位層に依存してよいが逆は禁止
 - 共通処理はHelpers/Utilsに集約し、重複実装を作らない

@@ -62,6 +62,7 @@ alwaysApply: false
 - 本番適用済みMigrationを直接変更しない
 - Schema変更は新規Migrationで行う
 - 大量データMigrationではロック時間を考慮する
+- MySQLのネイティブ`enum()`型カラムは使わない。`varchar`とし、値の集合はPHP Enum側で管理する（Entityの`casts()`でキャスト）。DBスキーマとPHP Enumの二重管理を避けるため
 
 ## Quality
 

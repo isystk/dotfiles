@@ -38,6 +38,10 @@ DANGEROUS_PATTERNS=(
   'wget[^|]*\|[[:space:]]*(ba)?sh'
   'chmod[[:space:]]+777'
   'git[[:space:]]+push[[:space:]]+(-f|--force)'
+  # ブランチの作成・切替を禁止
+  'git[[:space:]]+checkout[[:space:]]+-[bB]([[:space:]]|$)'
+  'git[[:space:]]+switch([[:space:]]|$)'
+  'git[[:space:]]+branch[[:space:]]+[^-[:space:]]'
 )
 
 for PATTERN in "${DANGEROUS_PATTERNS[@]}"; do
