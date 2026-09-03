@@ -12,9 +12,13 @@ source "$SCRIPT_DIR/scripts/utils.sh"
 # ファイルコピー関数 (ターゲットが存在しない場合のみコピー)
 # $1: ソース (コピー元ファイル)
 # $2: ターゲット (作成するファイル)
+# $3: (任意) "sudo" を渡すと /etc 等の権限が必要な場所へ sudo でコピーする
 copy_with_prompt() {
     local source="$1"
     local target="$2"
+    local use_sudo="${3:-}"
+    local sudo_cmd=""
+    [ "$use_sudo" = "sudo" ] && sudo_cmd="sudo"
 
     if [ ! -e "$source" ]; then
         echo "Skip copy: Source $source does not exist."
@@ -27,7 +31,7 @@ copy_with_prompt() {
         case "$ans" in
             [yY][eE][sS]|[yY])
                 echo "Backing up existing file to $target.bak..."
-                cp -R "$target" "$target.bak"
+                $sudo_cmd cp -R "$target" "$target.bak"
                 ;;
             *)
                 echo "Skipping copy..."
@@ -38,8 +42,8 @@ copy_with_prompt() {
 
     # コピー実行セクション (既存ファイルは cp が上書きするため rm は行わない)
     echo "Copying: $source to $target"
-    mkdir -p "$(dirname "$target")"
-    cp -R "$source" "$target" # ディレクトリごとコピーできるよう -R を推奨
+    $sudo_cmd mkdir -p "$(dirname "$target")"
+    $sudo_cmd cp -R "$source" "$target" # ディレクトリごとコピーできるよう -R を推奨
 }
 
 # シンボリックリンク作成関数
@@ -218,13 +222,13 @@ if [ -n "$IS_WSL" ]; then
     # WSL固有の設定
     echo "Configuring WSL system files (requires sudo)..."
     if [ -f "$SCRIPT_DIR/.config/wsl/wsl.conf" ]; then
-        copy_with_prompt "$SCRIPT_DIR/.config/wsl/wsl.conf" /etc/wsl.conf
+        copy_with_prompt "$SCRIPT_DIR/.config/wsl/wsl.conf" /etc/wsl.conf sudo
     fi
     if [ -f "$SCRIPT_DIR/.config/wsl/resolv.conf" ]; then
-        copy_with_prompt "$SCRIPT_DIR/.config/wsl/resolv.conf" /etc/resolv.conf
+        copy_with_prompt "$SCRIPT_DIR/.config/wsl/resolv.conf" /etc/resolv.conf sudo
     fi
     if [ -f "$SCRIPT_DIR/.config/wsl/fstab" ]; then
-        copy_with_prompt "$SCRIPT_DIR/.config/wsl/fstab" /etc/fstab
+        copy_with_prompt "$SCRIPT_DIR/.config/wsl/fstab" /etc/fstab sudo
     fi
 fi
 

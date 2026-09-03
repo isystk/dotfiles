@@ -10,12 +10,12 @@ fi
 
 # Neovim（AppImage版）をviに設定
 #export _EDITOR_PATH="$HOME/squashfs-root/AppRun"
-export _EDITOR_PATH="/opt/nvim/usr/bin/nvim"
+export _EDITOR_PATH='nvim'
 # レガシーvimを使いたい場合は以下を有効化
 #export _EDITOR_PATH='vim'
 
 # WSLでVPN繋いだ時だけSSHできなくなる対策
-ip link set eth0 mtu 1200
+sudo ip link set eth0 mtu 1200
 
 # Dockerr Windowsの接続に失敗する時に実行する
 fix_wsl2_interop() {

@@ -1,13 +1,17 @@
 ﻿<#
 .SYNOPSIS
-  Neovim(WSL)側からのトリガーファイル更新を検知し、フォアグラウンドウィンドウのIMEをオフにする常駐スクリプト。
+  Neovim(WSL)側からのNamed Pipe通知を受け、フォアグラウンドウィンドウのIMEをオフにする常駐スクリプト。
 
 .DESCRIPTION
-  WSL上のNeovimはパネル移動(WinLeave)等でexeを都度起動する方式だと
+  WSL上のNeovimはパネル移動(WinLeave)等でIME操作exeを都度起動する方式だと
   GetForegroundWindow()の対象がずれてIME切替が効かない問題があるため、
   常時起動の本スクリプト側でフォーカスウィンドウを取得しIMEを操作する。
-  WSL側は単純にトリガーファイルを書き換えるだけで良く、Windows側で
-  プロセスを都度起動する必要がない。
+  WSL側はNamed Pipe(nvim-ime-off)へ1行書き込むだけで通知でき、
+  実際のIME操作を行うexe起動は不要。
+
+  \\wsl.localhost経由のファイルポーリングは高頻度なUNC越しアクセスが
+  WSL2の9pファイルシステム層に負荷をかけWSLイメージ破損を招くため、
+  push型のNamed Pipe通知方式にする。
 
 .NOTES
   実行ファイル(exe)ではなくPowerShellスクリプトとして配布することで、
@@ -77,33 +81,30 @@ public class ImeHelper {
 }
 "@
 
-# WSL側($HOME直下)のトリガーファイルをUNCパスで監視する。
-# ディストリビューション名・Linuxユーザー名(root/一般ユーザーどちらでも可)は
-# 起動時に wsl.exe 経由で自動取得するため、環境が変わっても書き換え不要。
-# wsl.exeの出力はUTF-16LEでヌルバイトが混入することがあるため、
-# 対話シェルと異なり-File実行時は文字列処理が壊れる。ヌルバイトを除去してから使う。
-function Get-WslOutput([string]$Command) {
-    $raw = (wsl.exe -- sh -c $Command) -join ''
-    return ($raw -replace "`0", '').Trim()
-}
-$wslDistro = Get-WslOutput 'echo $WSL_DISTRO_NAME'
-$wslHome = (Get-WslOutput 'echo $HOME') -replace '/', '\'
-$TriggerPath = "\\wsl.localhost\$wslDistro$wslHome\.nvim-ime-off-trigger"
-$PollIntervalMs = 100
-
-$lastWriteTime = [DateTime]::MinValue
+# WSL(Neovim)側からのNamed Pipe接続を待ち受け、1行=1通知としてIMEをオフにする。
+# パイプ名はローカル固定のため、WSLディストロ名の解決(wsl.exe呼び出し)も不要。
+# Neovim側は起動時に接続したパイプを張りっぱなしにするため、1接続中に複数行
+# 届く前提でストリームが切れるまで読み続ける(切断されたら次の接続を待つ)。
+$PipeName = "nvim-ime-off"
 
 while ($true) {
+    $server = $null
     try {
-        if (Test-Path -LiteralPath $TriggerPath) {
-            $currentWriteTime = (Get-Item -LiteralPath $TriggerPath -ErrorAction Stop).LastWriteTime
-            if ($currentWriteTime -ne $lastWriteTime) {
-                $lastWriteTime = $currentWriteTime
-                [ImeHelper]::SetImeOff()
-            }
+        $server = New-Object System.IO.Pipes.NamedPipeServerStream(
+            $PipeName,
+            [System.IO.Pipes.PipeDirection]::In
+        )
+        $server.WaitForConnection()
+        $reader = New-Object System.IO.StreamReader($server)
+        while ($server.IsConnected) {
+            $line = $reader.ReadLine()
+            if ($null -eq $line) { break }
+            [ImeHelper]::SetImeOff()
         }
     } catch {
-        # WSL未起動時などUNCパスへアクセスできない瞬間は無視して次のポーリングへ
+        # クライアント切断タイミング等の一時的な例外は無視し、次の接続待ちへ
+        Start-Sleep -Milliseconds 100
+    } finally {
+        if ($server) { $server.Dispose() }
     }
-    Start-Sleep -Milliseconds $PollIntervalMs
 }

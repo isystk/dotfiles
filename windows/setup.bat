@@ -5,10 +5,6 @@ set DOTFILES=%~dp0
 :: 1. ファイルのシンボリックリンク作成
 echo Creating symbolic links...
 call :CreateFileLink "%USERPROFILE%\.ideavimrc" "%DOTFILES%..\.ideavimrc"
-call :CreateFileLink "%USERPROFILE%\.gitconfig" "%DOTFILES%..\.gitconfig"
-
-:: --- .gitconfig.local (credential.helper等のOS別設定) は example からコピー ---
-call :CopyWithPrompt "%DOTFILES%..\.gitconfig.local.example" "%USERPROFILE%\.gitconfig.local"
 
 :: 2. ディレクトリのシンボリックリンク作成
 call :CreateDirLink "%USERPROFILE%\.ssh" "%DOTFILES%..\..\.ssh"

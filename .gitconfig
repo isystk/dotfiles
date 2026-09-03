@@ -31,7 +31,8 @@
     prune = true          # リモートで消されたブランチを、fetch時にローカル側でも削除する
 
 [push]
-    default = simple       # 現在のブランチと同名のリモートブランチにpushする設定
+    # simpleはtracking先へpushするためForkなど別ツールでPushした場合もtracking誤設定時に別ブランチへ誤pushする事故があり、currentはそれを防げる
+    default = current      # 現在のブランチと同名のリモートブランチにpushする設定
     autoSetupRemote = true # 初回push時に自動で上流ブランチを設定する
 
 [diff]

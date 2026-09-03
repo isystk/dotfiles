@@ -64,19 +64,14 @@ windows\cleanup.bat
 ### 🍎 Mac
 
 ```bash
-brew install mise gh fzy ccat git-lfs ripgrep
+brew install mise fzy ccat git-lfs ripgrep
 
 ```
 
 ### 🐧 Linux (WSL / Ubuntu)
 
 ```bash
-sudo apt update && sudo apt install -y zsh gh fzy git-lfs ripgrep
-
-# Neovim (AppImage)
-curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
-chmod u+x nvim.appimage
-sudo mv nvim.appimage /usr/local/bin/nvim
+sudo apt update && sudo apt install -y zsh fzy git-lfs ripgrep
 
 ```
 
@@ -88,7 +83,7 @@ sudo mv nvim.appimage /usr/local/bin/nvim
 
 | ツール | 説明 | 初期設定コマンド |
 | --- | --- | --- |
-| **Mise** | 言語ランタイム管理 | `mise install` |
+| **Mise** | 言語ランタイム・CLIツール管理（`gh` / `jq` / `neovim` 含む） | `mise install` |
 | **GitHub CLI** | GitHub操作 | `gh auth login` |
 | **git-secrets** | 認証情報の露出防止 | `git secrets --register-aws --global` |
 | **tree-sitter CLI** | Neovim (nvim-treesitter) のパーサービルドに必要 | `npm install -g tree-sitter-cli`（`mise install` 後、`node`/`npm` が使える状態で実行） |
@@ -221,8 +216,8 @@ Windowsの標準設定だけで、Macのように「**無変換キーで英数**
 WSL上のNeovim（またはVimモードのある他エディタ）でインサートモードを抜けた時・パネル移動（`<S-Tab>`等）した時に、IMEを自動的にオフにします。
 本リポジトリ同梱の `windows/tools/ime-watcher.ps1`（IME操作の本体）と `windows/tools/ime-watcher-launcher.vbs`（タスクバーにアイコンを出さず起動するランチャー）をWindows側で常駐起動しておくことで実現します。
 
-* **仕組み:** WSL側の `~/.nvim-ime-off-trigger` ファイルを `init.lua` が `InsertLeave` ・ `WinLeave` 時に書き換え、Windows側で常駐する `ime-watcher.ps1` がそれをポーリング検知してフォアグラウンドウィンドウのIMEをオフにします。（WSLから都度exeを起動する方式は対象ウィンドウ判定がずれ動作しなかったため、常駐監視方式にしています）
-  監視対象パス（ディストリビューション名・Linuxユーザー名）は起動時に `wsl.exe` 経由で自動取得するため、環境ごとの書き換えは不要です。
+* **仕組み:** `init.lua` が `InsertLeave` ・ `WinLeave` 時にWindows側常駐プロセスへNamed Pipe（`nvim-ime-off`）で通知を送り、Windows側で常駐する `ime-watcher.ps1` が通知を受けてフォアグラウンドウィンドウのIMEをオフにします。（WSLから都度exeを起動してIME操作自体を行う方式は対象ウィンドウ判定がずれ動作しなかったため、実際のIME操作は常駐プロセス側で行い、WSL側は軽量な通知のみ送る設計にしています）
+  `~/.nvim-ime-off-trigger` ファイルを `\\wsl.localhost` 経由でWindows側がポーリングする方式は、高頻度なUNC越しファイルアクセスがWSL2の9pファイルシステム層に負荷をかけWSLイメージ破損を招くため、push型のNamed Pipe通知方式にしています。
 * **設定方法:**
 1. `windows/tools/ime-watcher.ps1` と `windows/tools/ime-watcher-launcher.vbs` を**同じ**Windows側フォルダ（例: `C:\Users\<ユーザー名>\Tools`）へ配置します（vbsはps1と同じフォルダにある前提で動作します）。
    * 配置先フォルダは、システムの環境変数 `Path` に追加してください（＝OS標準の「PATHを通す」操作）。次の手順のショートカットはフルパス指定のため追加しなくても起動できますが、動作確認でPowerShellから `ime-watcher.ps1` とだけ打って手動実行したい場合に必要です。
