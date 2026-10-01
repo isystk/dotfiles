@@ -37,6 +37,7 @@ __pycache__/
 !.env.example
 .setenv.local
 .gitconfig.local
+.backup-files
 .config/gh/hosts.yml
 
 # --- Version Control ---
@@ -45,5 +46,6 @@ __pycache__/
 
 # --- Application Specific ---
 .claude/skills/.system/
+.claude/skills/synced/
 .codex/config.toml
 

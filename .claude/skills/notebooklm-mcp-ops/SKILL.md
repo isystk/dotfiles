@@ -105,8 +105,13 @@ sandbox機構が使えず起動自体に失敗している）。このエラー�
 ミラーモード／NATモードいずれのWSL2ネットワーキングでも通る（`cat /etc/wsl.conf` や
 `ip addr show eth1` で確認は可能だが、下記手順ならモード判定は不要）。
 
+**初手ポートは9333固定**（2026-08-07〜2026-08-13にわたり9222は100%失敗、9333で
+100%成功している実績のため。この環境ではWindows側の別プロセス（`svchost`等）が
+`0.0.0.0:9222`を恒常的に占有していると見られ、9222から試す意味がない。都度9222を
+試して失敗を確認してから9333に切り替える、という手順は踏まないこと）。
+
 1. WSL側で疎通確認（既存Chromeがデバッグポートで待受済みか）：
-   `curl -s --max-time 5 http://localhost:9222/json/version`
+   `curl -s --max-time 5 http://localhost:9333/json/version`
    応答が返らない（`curl: (7) Failed to connect`）場合は2へ。
 2. Windows側PowerShellでデバッグポート付きChromeを起動してもらう。
    **フルパスに空白を含むため `&`（呼び出し演算子）が必須**（省略すると
@@ -116,34 +121,33 @@ sandbox機構が使えず起動自体に失敗している）。このエラー�
    `--remote-debugging-port` 自体が無視される。この場合 `netstat` で対象ポートが
    一切LISTENされていない状態になり、一見「まだ起動していない」ように見えて紛らわしい）：
    ```powershell
-   & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\temp\chrome-debug-profile"
+   & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9333 --user-data-dir="C:\temp\chrome-debug-profile2"
    ```
 3. 起動後もWSL側から疎通しない場合（`curl`が「接続を拒否」ではなく「接続確立後すぐ
-   リセットされる」という挙動なら特に）、**ポート9222がWindows側の別プロセス（`svchost`等）に
-   占有されている可能性が高い**（2026-08-07実績・2026-08-13再発）。
-   Windows側で以下を確認する：
+   リセットされる」という挙動なら特に）、**ポート9333も何らかのプロセスに
+   占有されている可能性がある**（稀）。Windows側で以下を確認する：
    ```powershell
    Get-Process chrome | Format-Table Id,StartTime
-   netstat -ano | findstr 9222
+   netstat -ano | findstr 9333
    ```
-   **`netstat`の結果は必ずIPv4行（`0.0.0.0:9222` や `127.0.0.1:9222`）とIPv6行
-   （`[::1]:9222`）を分けて見る**（2026-08-13実績で判明した罠）：Chrome自体は
-   `[::1]:9222`（IPv6 loopback）の確保には成功していても、`0.0.0.0:9222`
+   **`netstat`の結果は必ずIPv4行（`0.0.0.0:9333` や `127.0.0.1:9333`）とIPv6行
+   （`[::1]:9333`）を分けて見る**（2026-08-13実績で判明した罠）：Chrome自体は
+   `[::1]:<port>`（IPv6 loopback）の確保には成功していても、`0.0.0.0:<port>`
    （IPv4含む全アドレス）を`svchost`等の別プロセスに先取りされているケースがある。
-   このとき**Windows自身のブラウザで`http://localhost:9222/json/version`を開くと
+   このとき**Windows自身のブラウザで`http://localhost:<port>/json/version`を開くと
    `localhost`がIPv6優先で解決されるため正常にChromeへ繋がって見えてしまう**が、
    WSL側は`127.0.0.1`（IPv4）で接続するため、そちらは非Chromeプロセスに到達し
    `Recv failure`（接続確立後すぐリセット）で失敗し続ける。「Windows側は正常なのに
    WSL側だけ繋がらない」状態が起きたら、まずこのIPv4/IPv6の食い違いを疑うこと。
-   `Get-Process -Id <0.0.0.0:9222側のPID>` で実体を確認し、`chrome`でなければ
-   （`svchost`等）別ポート（例: 9333）を`--user-data-dir`も新しいパスに変えて
+   `Get-Process -Id <0.0.0.0:9333側のPID>` で実体を確認し、`chrome`でなければ
+   （`svchost`等）さらに別ポート（例: 9334）を`--user-data-dir`も新しいパスに変えて
    1〜2をやり直す：
    ```powershell
-   & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9333 --user-data-dir="C:\temp\chrome-debug-profile2"
+   & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9334 --user-data-dir="C:\temp\chrome-debug-profile3"
    ```
    切り替え後も同じ手順（`Get-Process chrome`+`netstat -ano | findstr <port>`、
    IPv4/IPv6両方確認）で、今度は`0.0.0.0:<port>`側のPIDがchromeであることを確認してから
-   WSL側の疎通確認 `http://localhost:9333/json/version` に進む（`192.168.10.1:<port>`
+   WSL側の疎通確認 `http://localhost:<port>/json/version` に進む（`192.168.10.1:<port>`
    のようなゲートウェイIP経由は接続拒否になりやすく確認不要。localhostへの
    ポートフォワーディングがNAT/ミラーどちらのモードでも機能する）。
 4. 疎通確認できたら `nlm login --provider openclaw --cdp-url http://127.0.0.1:<port> --force`

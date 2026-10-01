@@ -13,21 +13,56 @@ confirm() {
 
 usage() {
     awk '
-        # 親階層の開始
-        /^[[:space:]]*(docker|vscode|antigravity)\)/ { parent = $1; sub(/\).*/, "", parent); next }
-        # 親階層の終了
-        /^[[:space:]]*esac/ { parent = "" }
-        # 説明文の保持
-        /^[[:space:]]*## / { desc = $0; sub(/.*## /, "", desc); next }
-        # コマンドの出力
-        /^[[:space:]]*[a-zA-Z0-9_*| -]+\)/ && desc {
-            cmd = $1; 
-            sub(/\).*/, "", cmd);      # ")" 以降を削除
-            sub(/[[:space:]]*\|.*/, "", cmd); # "|" があればそれ以降（*)など）を削除
-            
-            full = (parent && cmd != parent && cmd !~ /help/) ? parent " " cmd : cmd
-            printf "  %-25s %s\n", full, desc
+        { lines[NR] = $0 }
+        END {
+            parent = ""
             desc = ""
+            for (i = 1; i <= NR; i++) {
+                line = lines[i]
+                match(line, /^[[:space:]]*/); indent = RLENGTH
+
+                # 説明文の保持
+                if (line ~ /^[[:space:]]*## /) {
+                    desc = line
+                    sub(/.*## /, "", desc)
+                    continue
+                }
+
+                # 子階層の終了（親階層へ戻る）
+                if (indent == 8 && line ~ /^[[:space:]]*esac/) {
+                    parent = ""
+                    continue
+                }
+
+                if (line ~ /^[[:space:]]*[a-zA-Z0-9_*| -]+\)/) {
+                    cmd = line
+                    sub(/^[[:space:]]*/, "", cmd)
+                    sub(/\).*/, "", cmd)              # ")" 以降を削除
+                    sub(/[[:space:]]*\|.*/, "", cmd)  # "|" があればそれ以降（*)など）を削除
+
+                    # 次の兄弟コマンドが現れるまでの間に "case "${2}" in" があれば子階層を持つ親コマンド
+                    if (indent == 4) {
+                        is_parent = 0
+                        for (j = i + 1; j <= NR; j++) {
+                            line2 = lines[j]
+                            match(line2, /^[[:space:]]*/); indent2 = RLENGTH
+                            if (indent2 == 4 && line2 ~ /^[[:space:]]*[a-zA-Z0-9_*| -]+\)/) break
+                            if (line2 ~ /case "\$\{2\}" in/) { is_parent = 1; break }
+                        }
+                        if (is_parent) {
+                            parent = cmd
+                            desc = ""
+                            continue
+                        }
+                    }
+
+                    if (desc != "") {
+                        full = (parent != "" && cmd != parent) ? parent " " cmd : cmd
+                        printf "  %-25s %s\n", full, desc
+                        desc = ""
+                    }
+                }
+            }
         }
     ' "$0"
 }
@@ -152,6 +187,11 @@ case "${1}" in
         fi
         ;;
 
+    ## powershell.exe連携（エクスプローラー起動/クリップボード貼り付け等）が壊れた際の応急処置としてbinfmt_miscを再登録します。
+    wsl-interop)
+        echo ':WSLInterop:M::MZ::/init:P' | sudo tee /proc/sys/fs/binfmt_misc/register
+        ;;
+
     ## CRLFファイルを検索後、確認してからLFに変換します。
     find-crlf)
         target="${2:-.}"
@@ -213,6 +253,11 @@ case "${1}" in
                 popd
                 ;;
         esac
+        ;;
+
+    ## 指定ファイルリストの同期管理を行います。
+    backup)
+        "${SCRIPT_DIR}/backup.sh" "${@:2}"
         ;;
 
     ## ヘルプを表示します。

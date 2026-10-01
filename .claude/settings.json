@@ -107,7 +107,13 @@
       "Read(./secrets/**)"
     ],
     "defaultMode": "auto",
-    "disableBypassPermissionsMode": "disable"
+    "disableBypassPermissionsMode": "disable",
+    "autoMode": {
+      "allow": [
+        "$defaults",
+        "cdで作業ディレクトリを変更した上でcat/grep/find/ls/head/tail等の読み取り専用コマンドを実行する複合コマンド（.env・secrets・認証情報ファイルを対象としない場合）"
+      ]
+    }
   },
   "enableAllProjectMcpServers": true,
   "hooks": {
@@ -193,7 +199,8 @@
     "genshijin@genshijin": true,
     "superpowers@superpowers-marketplace": true,
     "dig@kuu-marketplace": true,
-    "php-lsp@claude-plugins-official": true
+    "php-lsp@claude-plugins-official": true,
+    "typesafe@typesafe-ai": true
   },
   "extraKnownMarketplaces": {
     "genshijin": {
@@ -213,6 +220,12 @@
         "source": "github",
         "repo": "fumiya-kume/claude-code"
       }
+    },
+    "typesafe-ai": {
+      "source": {
+        "source": "github",
+        "repo": "typesafe-ai/skills"
+      }
     }
   },
   "language": "Japanese",
@@ -227,5 +240,6 @@
   "showTurnDuration": true,
   "teammateMode": "auto",
   "agentPushNotifEnabled": true,
-  "prStatusFooterEnabled": true
+  "prStatusFooterEnabled": true,
+  "model": "sonnet"
 }
