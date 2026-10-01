@@ -1213,7 +1213,7 @@
 			<key>Window Type</key>
 			<string>0</string>
 			<key>Working Directory</key>
-			<string>/Users/iseyoshitaka</string>
+			<string>~</string>
 		</dict>
 	</array>
 	<key>NoSyncAllAppVersions</key>
@@ -2318,7 +2318,7 @@
 		</dict>
 	</dict>
 	<key>PrefsCustomFolder</key>
-	<string>/Users/iseyoshitaka/dotfiles/.config/iterm2</string>
+	<string>~/dotfiles/.config/iterm2</string>
 	<key>PreventEscapeSequenceFromClearingHistory</key>
 	<string>0</string>
 	<key>ReportRightClick</key>
