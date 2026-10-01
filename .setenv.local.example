@@ -5,6 +5,9 @@ export GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
 # ChatGPT (OpenAI) APIキー
 export OPENAI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
 
+# Jev APIキー
+export TYPESAFE_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+
 # Wordpress URL
 export WORDPRESS_URL=https://blog.example.com/wp-json/wp/v2
 
@@ -13,6 +16,9 @@ export WORDPRESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
 
 # 許可するメールアドレス (Git commiter name/email for Playwright)
 export ALLOWED_EMAIL=xxxx@xxxx.com
+
+# run backup push/pull の同期先ディレクトリ（未設定時は /mnt/c/Users/{Windowsユーザー名}/backups）
+export BACKUP_DEST=/mnt/c/Users/xxxx/backups
 
 # run ask コマンドでAIに読み込ませたいコンテキスト
 export ASK_FILES

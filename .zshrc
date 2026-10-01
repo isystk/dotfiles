@@ -157,6 +157,9 @@ zinit wait'0' lucid for \
     atinit"compdef _run_completion run; setopt complete_aliases" \
     zdharma-continuum/null
 
+# ログイン時にファイルリスト同期状況を確認する（WSL環境のみ）
+[[ -n "$IS_WSL" ]] && run backup check-sync
+
 # EDITOR/VISUALに"vi"を含む値(nvimパス等)がセットされていると
 # zsh起動時に自動でviinsキーマップになりCtrl+A等のemacsバインドが効かなくなるため、
 # 明示的にemacsキーマップを指定する

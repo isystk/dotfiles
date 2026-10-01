@@ -41,6 +41,7 @@ alwaysApply: false
 - Enum値を保持するEntity属性は、可能な限り`casts()`でEnum型にキャストする。新規カラム追加時は最初からEnumキャストを付与する
 - symbol・direction・exchange等の列挙的な値を受け取る関数・メソッドの引数は、`string`型ヒントより対応するEnum型を優先する
 - DB関連ルール（N+1・Migration等）は`database.md`に従う
+- Controllerはアクション単位ではなく画面・リソース単位で1対1とする。同一画面のアクション（`index`/`store`/`keep`/`destroy`等）は1つのControllerクラスにまとめ、アクションごとにControllerを分割しない
 - Controller・Job・BatchはRepositoryやEloquentを直接呼ばず、必ずServiceを経由する
 - Serviceのインスタンス化は`app(XxxService::class)`を使う
 - Serviceは呼び出し元のクラス単位ではなく、呼び出し元の**メソッド**（ControllerのActionメソッド・Jobの`handle`・Batch）に対して1対1で作成する。クラス名はController/Jobのクラス名ではなく、そのアクション**メソッド名**に合わせて命名する（例: `edit()`アクションには`EditService`、`store()`アクションには`StoreService`。無関係な名前を付けない）

@@ -145,7 +145,6 @@
   "intelephense.files.exclude": [
     "**/.history/**",
     "**/node_modules/**",
-    "**/vendor/**",
     "**/.git/**"
   ],
   "local-history.path": "", // 履歴の保存先

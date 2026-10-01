@@ -83,6 +83,13 @@ if [ -n "$IS_MAC" ]; then
     safe_unlink "$HOME/.ideavimrc"
     safe_unlink "$HOME/.config/karabiner/karabiner.json"
     safe_unlink "$HOME/.config/karabiner/assets/complex_modifications"
+
+    # iTerm2: symlinkではなくdefaults writeで登録しているためsafe_unlink非対応
+    if defaults read com.googlecode.iterm2 PrefsCustomFolder &>/dev/null; then
+        defaults delete com.googlecode.iterm2 PrefsCustomFolder
+        defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
+        echo "iTerm2: Reverted to local preferences (restart iTerm2 to apply)"
+    fi
 fi
 
 #if [ -n "$IS_WSL" ]; then

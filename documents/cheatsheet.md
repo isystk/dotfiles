@@ -159,5 +159,24 @@ AI 連携や GitHub CLI のラッパー機能。
 |                  | `pdf-to-images`     | PDFファイルを画像ファイルに変換します。                                          |
 |                  | `cleanup`           | 不要なメタデータファイル（Zone.Identifierと.DS_Store）を一括削除              | 
 |                  | `find-crlf`         | CRLFファイルを検索、確後後にLFに変換                                     |
+|                  | `wsl-interop`       | powershell.exe連携が壊れた際の応急処置（binfmt_misc再登録）              |
 | **開発エディタ設定**   | `vscode backup / restore`     | VSCodeの設定ファイルをバックアップ / リストア          |
 |                  | `antigravity backup / restore`     | Antigravityの設定ファイルをバックアップ / リストア          |
+| **ファイルリスト同期** | `backup push`       | `~/.backup-files`記載のパスを同期先ディレクトリへバックアップ（BACKUP_DEST未設定時は`/mnt/c/Users/{ユーザー}/backups`） |
+|                  | `backup pull`       | 同期先ディレクトリからローカルへリストア                                        |
+|                  | `backup check-sync` | 最後の同期日時を表示し、必要ならバックアップを実行（Zshログイン時にWSLのみ自動実行）              |
+
+---
+
+### 5. VSCode拡張機能 (自作)
+
+`editors/VSCode/vscode-extensions/` に同梱しているLaravel向け自作拡張機能。
+
+| 拡張機能                          | 内容 / 使い方                                                                 |
+|--------------------------------|---------------------------------------------------------------------------|
+| **laravel-phpunit-runner**     | PHPUnitをDockerコンテナ内で実行。`Ctrl+Shift+T`でカーソル位置のファイルのテスト実行、`Ctrl+Shift+Alt+T`でカーソル位置のメソッドのみ実行、`Ctrl+Shift+Alt+G`でテストファイルとの相互ジャンプ |
+| **laravel-blade-goto-controller** | Bladeテンプレート上で`Ctrl+Alt+G`を押すと、そのビューを描画しているController Actionへジャンプ         |
+| **laravel-phpstan-diagnostics** | PHPファイル保存時にDockerコンテナ内で`php -l`と`phpstan`を自動実行し、診断結果をエディタへ表示               |
+| **laravel-goto-config**        | PHP/Blade内の`config()`呼び出しにカーソルを合わせ「定義へ移動」（`F12` / `Ctrl+クリック`）で対応する設定ファイルへジャンプ |
+| **laravel-goto-route**         | PHP/Blade内の`route()`呼び出しにカーソルを合わせ「定義へ移動」（`F12` / `Ctrl+クリック`）で対応するルート定義へジャンプ |
+| **laravel-blade-goto-vite**    | Blade内の`@vite()`ディレクティブにカーソルを合わせ「定義へ移動」（`F12` / `Ctrl+クリック`）で対象アセットファイルへジャンプ |

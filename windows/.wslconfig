@@ -11,9 +11,7 @@ guiApplications=true
 networkingMode=mirrored
 
 [experimental]
-# キャッシュを解放してホストへメモリを自動返却（dropcacheモード）
-autoMemoryReclaim=dropcache
 # ネットワーク接続の互換性を向上させるDNSトンネリングを有効化
 dnsTunneling=true
 # アイドル時に未使用のメモリをホストに返却
-#freeMemoryOnIdle=true
+autoMemoryReclaim=gradual

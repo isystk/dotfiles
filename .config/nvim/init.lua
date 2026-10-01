@@ -440,7 +440,14 @@ require('lazy').setup({
     'MeanderingProgrammer/render-markdown.nvim',
     dependencies = { 'nvim-treesitter/nvim-treesitter', 'nvim-tree/nvim-web-devicons' },
     ft = 'markdown',
-    opts = {},
+    opts = {
+      -- anti_concealはカーソル行のみ常に生表示にする機能(デフォルト全モード有効)。
+      -- normalモードでも効いてカーソル位置だけ表示が崩れるため無効化する。
+      -- insertモードはrender_modes(既定n/c/t)対象外で元々生表示のため据え置き
+      anti_conceal = {
+        disabled_modes = { 'n' },
+      },
+    },
   },
   {
     'petertriho/nvim-scrollbar',
@@ -613,10 +620,11 @@ require('lazy').setup({
     dependencies = { 'folke/snacks.nvim' },
     opts = {
       terminal_cmd = 'claude --agent evolver',
-      -- Markdown等でvisual選択中、カーソル移動毎の高頻度selection_changed送信が
-      -- WebSocket ECONNRESET(Client read error)を誘発するため、送信間隔を広げて緩和する
-      -- (track_selection=falseにすると<leader>as手動送信自体が無効化されるため使えない)
-      visual_demotion_delay_ms = 500,
+      -- マウスドラッグでの範囲選択中、CursorMoved高頻度発火→selection_changedの
+      -- WebSocket送信が詰まりread error(画面フリーズ)を誘発するため、selection
+      -- tracking自体を無効化する。副作用: <leader>as(visual選択の自動送信)は使えなく
+      -- なるため、選択範囲を送りたい場合は :ClaudeCodeSend を選択後に手動実行する
+      track_selection = false,
       terminal = {
         split_width_percentage = 65, -- 1以上は絶対列数として扱われる(snacks.win仕様)。ターミナル全体幅に追従させず固定
         diff_split_width_percentage = 65, -- diff表示時も同じ固定幅を維持
@@ -1937,6 +1945,48 @@ if vim.fn.has('mac') == 1 then
       end,
     })
   end
+
+  -- Cmd+c/v/z/Shift+z を Windows風操作(4.キーマッピングの<C-z>等)と同じ挙動にする。
+  -- ターミナル経由のnvimはCmdキーを既定で受信しない。iTerm2はCmd+C/VをEdit menuの
+  -- コピー/ペーストとして横取りし、そもそもキーイベントをnvimへ渡さない(Kitty Keyboard
+  -- Protocol関連設定を有効にしても、iTerm2のメニューショートカットが先にヒットするため無効)。
+  -- そのためiTerm2側 Preferences > Profiles > 対象プロファイル > Keys > Key Bindings で
+  -- 明示的なキーバインドを追加し、対応するControlキー相当のバイト列を送出させる
+  -- (Cmd+CはCtrl+Cと同じ0x03、Cmd+ZはCtrl+Zと同じ0x1aを送信)。
+  -- 明示バインドはメニューショートカットより優先されるためこれで転送できる。
+  -- Cmd+Shift+ZはCtrl相当のバイト列が存在しないため、未使用のF5キーコード(\x1b[15~)を
+  -- 代替に使い、iTerm2側でCmd+Shift+Z → F5送出の設定を追加する。
+  -- Cmd+VはCtrl+V(0x16)にすると、下部ターミナルパネル(zsh)側でreadlineの
+  -- quoted-insertとして横取りされ通常ペーストできなくなるため、Ctrl+Vとは別の
+  -- 未使用のF6キーコード(\x1b[17~)を使う。iTerm2側でCmd+V → F6送出の設定を追加する。
+  -- (Kitty Keyboard Protocol対応ターミナルへ乗り換えた場合用に<D-...>も残しておく)
+  vim.keymap.set('n', '<D-z>', 'u',         noremap_silent)
+  vim.keymap.set('i', '<D-z>', '<C-o>u',    noremap_silent)
+  vim.keymap.set('v', '<D-z>', '<Esc>u',    noremap_silent)
+  vim.keymap.set('n', '<D-S-z>', '<C-r>',     noremap_silent)
+  vim.keymap.set('i', '<D-S-z>', '<C-o><C-r>', noremap_silent)
+  vim.keymap.set('v', '<D-S-z>', '<Esc><C-r>', noremap_silent)
+  vim.keymap.set('v', '<D-c>', 'y',         noremap_silent)
+  vim.keymap.set('i', '<D-v>', '<C-r>*',    noremap_silent)
+  vim.keymap.set('v', '<D-v>', '"0p',       noremap_silent)
+
+  -- iTerm2側でCmd+Shift+Z → F5送出に割り当てた場合の受け口(Cmd+Shift+Zの代替)
+  vim.keymap.set('n', '<F5>', '<C-r>',     noremap_silent)
+  vim.keymap.set('i', '<F5>', '<C-o><C-r>', noremap_silent)
+  vim.keymap.set('v', '<F5>', '<Esc><C-r>', noremap_silent)
+
+  -- iTerm2側でCmd+V → F6送出に割り当てた場合の受け口(Cmd+Vの代替)。
+  -- 下部ターミナルパネル(:terminalバッファ)はterminal-mode('t')経由でキー入力が
+  -- 直接ジョブへ流れるため、i/vモードのマッピングでは捕捉できない。't'モード側で
+  -- クリップボード内容をジョブへ直接送信する。
+  vim.keymap.set('i', '<F6>', '<C-r>*', noremap_silent)
+  vim.keymap.set('v', '<F6>', '"0p',    noremap_silent)
+  vim.keymap.set('t', '<F6>', function()
+    local job_id = vim.b.terminal_job_id
+    if job_id then
+      vim.fn.chansend(job_id, vim.fn.getreg('+'))
+    end
+  end, { desc = 'ターミナルへクリップボードをペースト(Cmd+V)' })
 end
 
 -- ==========================================================

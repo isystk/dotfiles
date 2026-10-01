@@ -150,6 +150,7 @@ for k, v in d.get('env', {}).items():
 # ローカル環境設定 (exampleをコピーして作成)
 copy_with_prompt "$SCRIPT_DIR/.setenv.local.example" "$HOME/.setenv.local"
 copy_with_prompt "$SCRIPT_DIR/.gitconfig.local.example" "$HOME/.gitconfig.local"
+copy_with_prompt "$SCRIPT_DIR/.backup-files.example" "$HOME/.backup-files"
 
 # Shell / Env (シンボリックリンク)
 symlink "$SCRIPT_DIR/.bash_profile" "$HOME/.bash_profile"
@@ -208,12 +209,25 @@ if [ -n "$IS_MAC" ]; then
     read -r mac_ans
     case "$mac_ans" in
         [yY][eE][sS]|[yY])
-            symlink "$SCRIPT_DIR/.config/karabiner/karabiner.json" "$HOME/.config/karabiner/karabiner.json"
-            symlink "$SCRIPT_DIR/.config/karabiner/assets/complex_modifications" "$HOME/.config/karabiner/assets/complex_modifications"
+            symlink "$SCRIPT_DIR/mac/karabiner/karabiner.json" "$HOME/.config/karabiner/karabiner.json"
+            symlink "$SCRIPT_DIR/mac/karabiner/assets/complex_modifications" "$HOME/.config/karabiner/assets/complex_modifications"
 
             ;;
         *)
             echo "Skipping macOS config setup..."
+            ;;
+    esac
+
+    echo -n "Setup macOS config (iTerm2)? (y/N): "
+    read -r iterm_ans
+    case "$iterm_ans" in
+        [yY][eE][sS]|[yY])
+            defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$SCRIPT_DIR/mac/iterm2"
+            defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
+            echo "iTerm2: Loaded preferences from $SCRIPT_DIR/mac/iterm2 (restart iTerm2 to apply)"
+            ;;
+        *)
+            echo "Skipping iTerm2 config setup..."
             ;;
     esac
 fi

@@ -104,7 +104,6 @@ sudo apt update && sudo apt install -y zsh fzy git-lfs ripgrep
 │   ├── gemini-cli/       # Gemini CLI / プロンプト設定
 │   ├── gh/               # GitHub CLI
 │   ├── git/              # Git設定 (hooks)
-│   ├── karabiner/        # Karabiner-Elements設定 (Mac)
 │   ├── marp/             # Marpスライド設定
 │   ├── mise/             # Mise (config.toml)
 │   ├── nvim/             # Neovim設定
@@ -122,6 +121,9 @@ sudo apt update && sudo apt install -y zsh fzy git-lfs ripgrep
 │   ├── Antigravity/      # Antigravity設定
 │   ├── PhpStorm/         # PhpStorm設定
 │   └── VSCode/           # VSCode設定
+├── mac/                  # macOS固有設定 (install.sh実行時のみ反映)
+│   ├── iterm2/           # iTerm2設定 (com.googlecode.iterm2.plist)
+│   └── karabiner/        # Karabiner-Elements設定
 ├── install.sh            # Unix系用セットアップ
 ├── uninstall.sh          # Unix系用アンインストール
 ├── documents/            # ドキュメント群

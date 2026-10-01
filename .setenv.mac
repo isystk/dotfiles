@@ -2,4 +2,4 @@
 # Mac固有の環境設定
 #-------------------------
 
-export _EDITOR_PATH='/usr/local/bin/nvim'
+export _EDITOR_PATH=nvim
