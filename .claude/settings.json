@@ -107,13 +107,7 @@
       "Read(./secrets/**)"
     ],
     "defaultMode": "auto",
-    "disableBypassPermissionsMode": "disable",
-    "autoMode": {
-      "allow": [
-        "$defaults",
-        "cdで作業ディレクトリを変更した上でcat/grep/find/ls/head/tail等の読み取り専用コマンドを実行する複合コマンド（.env・secrets・認証情報ファイルを対象としない場合）"
-      ]
-    }
+    "disableBypassPermissionsMode": "disable"
   },
   "enableAllProjectMcpServers": true,
   "hooks": {
