@@ -115,8 +115,8 @@ export MISE_YES=1
 if (( $+commands[mise] )); then
   eval "$(mise activate zsh)"
 fi
-# gemini-cliのテンプレート位置を設定
-export GEMINI_CLI_PATH="$HOME/.config/gemini-cli"
+# ai-cli（設定・テンプレート）の位置を設定
+export AI_CLI_PATH="$HOME/.config/ai-cli"
 
 # --- 9. OS Specific Settings ---
 if [ -n "$IS_MAC" ]; then
@@ -142,6 +142,8 @@ alias nvim-ide="nvim --cmd 'let g:panels=1'"
 
 # --- 11. Custom Scripts ---
 alias run="$HOME/dotfiles/scripts/run.sh"
+# deepseek は現在のシェルの環境変数を変えるため source する（子プロセスからは親を変更できない）
+alias deepseek="source $HOME/dotfiles/scripts/deepseek.zsh"
 _run_completion() {
     local script="$HOME/dotfiles/scripts/run.sh"
     [ ! -x "$script" ] && return

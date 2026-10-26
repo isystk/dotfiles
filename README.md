@@ -86,6 +86,7 @@ sudo apt update && sudo apt install -y zsh fzy git-lfs ripgrep
 | **Mise** | 言語ランタイム・CLIツール管理（`gh` / `jq` / `neovim` 含む） | `mise install` |
 | **GitHub CLI** | GitHub操作 | `gh auth login` |
 | **git-secrets** | 認証情報の露出防止 | `git secrets --register-aws --global` |
+| **gitleaks** | コミット前の機密情報検査（グローバル pre-commit で実行。未導入ならスキップ） | `mise install`（`.config/mise/config.toml` に定義済み） |
 | **tree-sitter CLI** | Neovim (nvim-treesitter) のパーサービルドに必要 | `npm install -g tree-sitter-cli`（`mise install` 後、`node`/`npm` が使える状態で実行） |
 | **lazygit** | Neovim (lazygit.nvim, `<leader>g`) から呼び出すgit TUI | [公式リリース](https://github.com/jesseduffield/lazygit/releases)から `/usr/local/bin` へ配置 |
 | **ripgrep** | Neovim (telescope.nvim) のファイル検索 (`<C-p>` / `<Space><Space>` / `<leader>fg`) に必要 | 上記OS別依存パッケージ導入手順でインストール済み |
@@ -100,8 +101,7 @@ sudo apt update && sudo apt install -y zsh fzy git-lfs ripgrep
 ├── .claude               # ClaudeCode設定（rule-templates/ = プロジェクトへコピーして使うルールテンプレート）
 ├── .codex                # Codex CLI設定 (AGENTS.md, config.toml)
 ├── .config/              # ツール別設定
-│   ├── chatgpt-cli/      # ChatGPT CLI設定
-│   ├── gemini-cli/       # Gemini CLI / プロンプト設定
+│   ├── ai-cli/           # AI CLI設定 (settings.json=プロバイダ/ルーティング, templates/=プロンプト)
 │   ├── gh/               # GitHub CLI
 │   ├── git/              # Git設定 (hooks)
 │   ├── marp/             # Marpスライド設定

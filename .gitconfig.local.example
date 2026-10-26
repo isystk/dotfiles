@@ -9,6 +9,7 @@
     # helper = cache (Linux/WSL)
 
 # GitHub限定でgh CLI経由の認証を使う場合（`gh auth login`実行後に有効）
+# ghのインストール先に合わせてパスを変更する（mise管理ならshims/ghを指定する）
 # [credential "https://github.com"]
 #     helper =
-#     helper = !/usr/bin/gh auth git-credential
+#     helper = !~/.local/share/mise/shims/gh auth git-credential

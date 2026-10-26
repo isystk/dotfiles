@@ -14,7 +14,7 @@ set -e
 
 # --- 実行確認処理 ---
 echo "⚠️  警告: 設定ファイルの解除とキャッシュディレクトリの削除を開始します。"
-echo "削除対象: .zshrc, .vimrc, .config/, .cache/ などの設定およびディレクトリ"
+echo "削除対象: dotfilesのシンボリックリンクと zinit / .vim / nvim データ (.cache は削除しない)"
 read -p "本当に実行してもよろしいですか？ (y/N): " confirm
 
 if [[ ! "$confirm" =~ ^[yY]$ ]]; then
@@ -51,10 +51,11 @@ safe_unlink "$HOME/.setenv.linux"
 # Git / Vim / Config
 safe_unlink "$HOME/.gitconfig"
 safe_unlink "$HOME/.vimrc"
+safe_unlink "$HOME/.local/bin/ai-cli"
+safe_unlink "$HOME/.config/ai-cli"
 safe_unlink "$HOME/.local/bin/gemini-cli"
-safe_unlink "$HOME/.config/gemini-cli"
 safe_unlink "$HOME/.local/bin/chatgpt-cli"
-safe_unlink "$HOME/.config/chatgpt-cli"
+safe_unlink "$HOME/.local/bin/claude-cli"
 safe_unlink "$HOME/.config/git"
 safe_unlink "$HOME/.config/gh"
 safe_unlink "$HOME/.config/nvim"
@@ -63,14 +64,17 @@ safe_unlink "$HOME/.config/mise"
 # Claude
 safe_unlink "$HOME/.claude/CLAUDE.md"
 safe_unlink "$HOME/.claude/settings.json"
+safe_unlink "$HOME/.claude/hooks"
 safe_unlink "$HOME/.claude/statusline.sh"
 safe_unlink "$HOME/.claude/agents"
 safe_unlink "$HOME/.claude/skills"
+safe_unlink "$HOME/.serena/contexts/claude-code-multi.yml"
 
 # Gemini / Antigravity
 safe_unlink "$HOME/.gemini/GEMINI.md"
 safe_unlink "$HOME/.gemini/settings.json"
 safe_unlink "$HOME/.gemini/skills"
+safe_unlink "$HOME/.gemini/antigravity/mcp_config.json"
 
 # Codex
 safe_unlink "$HOME/.codex/AGENTS.md"
@@ -105,7 +109,6 @@ dirs_to_remove=(
     "$HOME/.local/share/zinit"
     "$HOME/.vim"
     "$HOME/.local/share/nvim"
-    "$HOME/.cache"
 )
 for d in "${dirs_to_remove[@]}"; do
     if [ -d "$d" ]; then

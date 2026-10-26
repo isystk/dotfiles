@@ -5,7 +5,7 @@ API を直接叩かず、ローカルにログイン済みの `claude` コマン
 
 使い方:
   echo "$PROMPT" | claude-cli                # テンプレートなし。標準入力をそのままユーザーメッセージとして送信
-  echo "$PROMPT" | claude-cli -t <template>   # .config/claude-cli/templates/<template>.yaml を使用
+  echo "$PROMPT" | claude-cli -t <template>   # .config/ai-cli/templates/<template>.yaml を使用
   echo "$PROMPT" | claude-cli -t <template> -a <file>  # ファイルを添付（claude自身にReadさせる）
 
 テンプレート yaml の仕様:
@@ -17,7 +17,8 @@ API を直接叩かず、ローカルにログイン済みの `claude` コマン
     temperature: 0.1
     max_output_tokens: 4000
 
-モデルは settings.json（CLAUDE_CLI_PATH配下、既定 ~/.config/claude-cli）で管理する。
+通常は ai-cli 経由で呼び出す（直接実行も可）。
+モデルは settings.json（AI_CLI_PATH配下、既定 ~/.config/ai-cli）の providers.claude で管理する。
   {
     "text_model": "sonnet"   # claude --model に渡すエイリアス or フルネーム
   }
@@ -31,7 +32,8 @@ import sys
 
 import yaml
 
-CONFIG_DIR = os.path.expanduser(os.environ.get("CLAUDE_CLI_PATH", "~/.config/claude-cli"))
+PROVIDER = "claude"
+CONFIG_DIR = os.path.expanduser(os.environ.get("AI_CLI_PATH", "~/.config/ai-cli"))
 TEMPLATE_DIR = os.path.join(CONFIG_DIR, "templates")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 
@@ -41,9 +43,13 @@ def load_settings():
         sys.exit(f"エラー: 設定ファイルが見つかりません: {SETTINGS_FILE}")
     with open(SETTINGS_FILE, encoding="utf-8") as f:
         try:
-            return json.load(f)
+            settings = json.load(f)
         except json.JSONDecodeError as e:
             sys.exit(f"エラー: {SETTINGS_FILE} の解析に失敗しました: {e}")
+    provider_settings = (settings.get("providers") or {}).get(PROVIDER)
+    if not provider_settings:
+        sys.exit(f"エラー: {SETTINGS_FILE} に \"providers.{PROVIDER}\" が設定されていません。")
+    return provider_settings
 
 
 def load_model(settings):

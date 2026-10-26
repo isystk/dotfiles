@@ -4,7 +4,7 @@ Gemini API を直接呼び出す軽量CLI。
 
 使い方:
   echo "$PROMPT" | gemini-cli                # テンプレートなし。標準入力をそのままユーザーメッセージとして送信
-  echo "$PROMPT" | gemini-cli -t <template>   # .config/gemini-cli/templates/<template>.yaml を使用
+  echo "$PROMPT" | gemini-cli -t <template>   # .config/ai-cli/templates/<template>.yaml を使用
   echo "$PROMPT" | gemini-cli -t <template> -a <file>  # ファイルを添付（Files APIへアップロードして参照）
   echo "$PROMPT" | gemini-cli --image -o <file.png>    # 画像を生成し、指定パスに保存
 
@@ -17,7 +17,8 @@ Gemini API を直接呼び出す軽量CLI。
     temperature: 0.1
     max_output_tokens: 4000
 
-モデルは settings.json（GEMINI_CLI_PATH配下、既定 ~/.config/gemini-cli）で管理する。
+通常は ai-cli 経由で呼び出す（直接実行も可）。
+モデルは settings.json（AI_CLI_PATH配下、既定 ~/.config/ai-cli）の providers.gemini で管理する。
   {
     "text_model": "...",   # 通常のテキスト生成で使用
     "image_model": "..."   # --image 指定時に使用
@@ -34,9 +35,16 @@ import time
 import urllib.error
 import urllib.request
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:
+    # mise の Python 更新直後などで未導入の場合は自動インストールして続行する
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pyyaml"], stdout=sys.stderr)
+    import yaml
 
-CONFIG_DIR = os.path.expanduser(os.environ.get("GEMINI_CLI_PATH", "~/.config/gemini-cli"))
+PROVIDER = "gemini"
+CONFIG_DIR = os.path.expanduser(os.environ.get("AI_CLI_PATH", "~/.config/ai-cli"))
 TEMPLATE_DIR = os.path.join(CONFIG_DIR, "templates")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -49,9 +57,13 @@ def load_settings():
         sys.exit(f"エラー: 設定ファイルが見つかりません: {SETTINGS_FILE}")
     with open(SETTINGS_FILE, encoding="utf-8") as f:
         try:
-            return json.load(f)
+            settings = json.load(f)
         except json.JSONDecodeError as e:
             sys.exit(f"エラー: {SETTINGS_FILE} の解析に失敗しました: {e}")
+    provider_settings = (settings.get("providers") or {}).get(PROVIDER)
+    if not provider_settings:
+        sys.exit(f"エラー: {SETTINGS_FILE} に \"providers.{PROVIDER}\" が設定されていません。")
+    return provider_settings
 
 
 def load_model(settings, key):

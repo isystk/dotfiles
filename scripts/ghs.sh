@@ -6,12 +6,12 @@
 # 主な機能:
 #   1. リモートのPRを一覧表示し、インタラクティブに選択
 #   2. 選択したPRに対して、ブラウザ表示、チェックアウト、マージを実行
-#   3. AI（gemini-cliコマンド）を使用して、特定のPRを即座にレビュー
+#   3. AI（ai-cliコマンド）を使用して、特定のPRを即座にレビュー
 #
 # 前提条件:
 #   - gh (GitHub CLI) がインストール・認証済みであること
 #   - utils.sh (select_from_list関数) が存在すること
-#   - gemini-cli コマンドおよび "ai-review" テンプレートが設定されていること
+#   - ai-cli コマンドおよび "ai-review" テンプレートが設定されていること
 # ==============================================================================
 
 # utils.sh が存在する場合のみ読み込み（select_from_list を使用するため）
@@ -80,7 +80,7 @@ select_action() {
             DIFF_CONTENT=$($GH_BIN pr diff "$pr_number")
             echo "🤖 AIでコードの変更をチェック中..."
 
-            printf "# PR情報\n%s\n\n# 差分\n%s" "$PR_INFO" "$DIFF_CONTENT" | gemini-cli -t ai-review
+            printf "# PR情報\n%s\n\n# 差分\n%s" "$PR_INFO" "$DIFF_CONTENT" | ai-cli -t ai-review
             echo -e "\n--- ✨ 生成完了 ---"
             ;;
         "キャンセル" | "")

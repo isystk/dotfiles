@@ -5,8 +5,7 @@
       "args": [
         "--from", "git+https://github.com/oraios/serena",
         "serena", "start-mcp-server",
-        "--context", "claude-code",
-        "--project-from-cwd"
+        "--context", "claude-code-multi"
       ]
     },
     "context7": {
@@ -16,10 +15,6 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest", "--browser", "chromium", "--user-data-dir", "$HOME/.claude/tools/google-auth/chrome-profile"]
-    },
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }

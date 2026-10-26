@@ -2,7 +2,9 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "respectGitignore": true,
   "env": {
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "500000",
+    "CLAUDE_CODE_PLUGIN_DIRS": "~/dotfiles/.claude/mods/session-hub:~/dotfiles/.claude/mods/effort-router"
   },
   "permissions": {
     "allow": [
@@ -104,11 +106,93 @@
       "Bash(git stash clear)",
       "Read(./.env)",
       "Read(./.env.*)",
-      "Read(./secrets/**)"
+      "Read(./secrets/**)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/secrets/**)",
+      "Read(~/.setenv*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.config/deepseek/**)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)",
+      "Bash(sed * *.env*)",
+      "Bash(awk * *.env*)",
+      "Bash(grep * *.env*)",
+      "Bash(source *.env*)",
+      "Bash(. *.env*)",
+      "Bash(cat *setenv*)",
+      "Bash(cat ~/.config/deepseek/*)",
+      "Bash(printenv *)",
+      "Bash(env |*)",
+      "Bash(echo *KEY*)",
+      "Bash(echo *TOKEN*)",
+      "Bash(echo *SECRET*)",
+      "Bash(echo *PASSWORD*)",
+      "Read(**/*.pem)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/id_rsa*)",
+      "Read(**/id_ed25519*)",
+      "Read(**/.setenv*)",
+      "Read(**/*.key)",
+      "Bash(cat **.pem*)",
+      "Bash(cat **.p12*)",
+      "Bash(cat **.pfx*)",
+      "Bash(head **.pem*)",
+      "Bash(head **.p12*)",
+      "Bash(head **.pfx*)",
+      "Bash(head **id_rsa*)",
+      "Bash(head **id_ed25519*)",
+      "Bash(head **setenv*)",
+      "Bash(tail **.pem*)",
+      "Bash(tail **.p12*)",
+      "Bash(tail **.pfx*)",
+      "Bash(tail **id_rsa*)",
+      "Bash(tail **id_ed25519*)",
+      "Bash(tail **setenv*)",
+      "Bash(less **.pem*)",
+      "Bash(less **.p12*)",
+      "Bash(less **.pfx*)",
+      "Bash(less **id_rsa*)",
+      "Bash(less **id_ed25519*)",
+      "Bash(less **setenv*)",
+      "Bash(more **.pem*)",
+      "Bash(more **.p12*)",
+      "Bash(more **.pfx*)",
+      "Bash(more **id_rsa*)",
+      "Bash(more **id_ed25519*)",
+      "Bash(more **setenv*)",
+      "Bash(grep **.pem*)",
+      "Bash(grep **.p12*)",
+      "Bash(grep **.pfx*)",
+      "Bash(grep **id_rsa*)",
+      "Bash(grep **id_ed25519*)",
+      "Bash(grep **setenv*)",
+      "Bash(sed **.pem*)",
+      "Bash(sed **.p12*)",
+      "Bash(sed **.pfx*)",
+      "Bash(sed **id_rsa*)",
+      "Bash(sed **id_ed25519*)",
+      "Bash(sed **setenv*)",
+      "Bash(awk **.pem*)",
+      "Bash(awk **.p12*)",
+      "Bash(awk **.pfx*)",
+      "Bash(awk **id_rsa*)",
+      "Bash(awk **id_ed25519*)",
+      "Bash(awk **setenv*)",
+      "Bash(base64 **.pem*)",
+      "Bash(base64 **.p12*)",
+      "Bash(base64 **.pfx*)",
+      "Bash(base64 **id_rsa*)",
+      "Bash(base64 **id_ed25519*)",
+      "Bash(base64 **setenv*)"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
   },
+  "model": "opusplan",
   "enableAllProjectMcpServers": true,
   "hooks": {
     "UserPromptSubmit": [
@@ -131,37 +215,9 @@
             "command": "bash ~/.claude/hooks/guard-dangerous-bash.sh"
           }
         ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/hooks/remind-serena-edit.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Grep|Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uvx --from git+https://github.com/oraios/serena serena-hooks remind --client claude-code",
-            "timeout": 10
-          }
-        ]
       }
     ],
     "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uvx --from git+https://github.com/oraios/serena serena-hooks activate --client claude-code",
-            "timeout": 10
-          }
-        ]
-      },
       {
         "hooks": [
           {
@@ -178,6 +234,11 @@
           {
             "type": "command",
             "command": "bash ~/.claude/hooks/notify-sound.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/tts-speak.sh",
+            "timeout": 10
           }
         ]
       }
@@ -193,8 +254,7 @@
     "genshijin@genshijin": true,
     "superpowers@superpowers-marketplace": true,
     "dig@kuu-marketplace": true,
-    "php-lsp@claude-plugins-official": true,
-    "typesafe@typesafe-ai": true
+    "php-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "genshijin": {
@@ -214,12 +274,6 @@
         "source": "github",
         "repo": "fumiya-kume/claude-code"
       }
-    },
-    "typesafe-ai": {
-      "source": {
-        "source": "github",
-        "repo": "typesafe-ai/skills"
-      }
     }
   },
   "language": "Japanese",
@@ -227,6 +281,10 @@
   "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
   "theme": "dark",
   "preferredNotifChannel": "terminal_bell",
   "autoCompactEnabled": true,
@@ -234,6 +292,7 @@
   "showTurnDuration": true,
   "teammateMode": "auto",
   "agentPushNotifEnabled": true,
+  "voiceEnabled": true,
   "prStatusFooterEnabled": true,
-  "model": "sonnet"
+  "switchModelsOnFlag": false
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 1. 未定義変数やエラーが発生した時点で停止させる
-set -u
+set -eu
 
 # 2. 実行ディレクトリの取得
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -26,18 +26,32 @@ copy_with_prompt() {
     fi
 
     if [ -e "$target" ]; then
-        echo -n "Notice: $target already exists. Overwrite? (y/N): "
-        read -r ans
-        case "$ans" in
-            [yY][eE][sS]|[yY])
-                echo "Backing up existing file to $target.bak..."
-                $sudo_cmd cp -R "$target" "$target.bak"
-                ;;
-            *)
-                echo "Skipping copy..."
-                return
-                ;;
+        # 上書き前に差分を表示する (/etc/fstab 等の誤上書き防止)
+        if [ -f "$source" ] && [ -f "$target" ]; then
+            diff -u "$target" "$source" || true
+        fi
+        # 確認が必要なのは /etc 等の sudo コピーと個人設定 (*.local, .backup-files) のみ。
+        # それ以外は退避して自動上書きする。
+        local need_confirm=""
+        case "$(basename "$target")" in
+            *.local|.backup-files) need_confirm=1 ;;
         esac
+        [ -n "$sudo_cmd" ] && need_confirm=1
+
+        if [ -n "$need_confirm" ]; then
+            echo -n "Notice: $target already exists. Overwrite? (y/N): "
+            read -r ans
+            case "$ans" in
+                [yY][eE][sS]|[yY]) ;;
+                *)
+                    echo "Skipping copy..."
+                    return
+                    ;;
+            esac
+        fi
+        local backup="$target.bak.$(date +%Y%m%d%H%M%S)"
+        echo "Backing up existing file to $backup..."
+        $sudo_cmd cp -R "$target" "$backup"
     fi
 
     # コピー実行セクション (既存ファイルは cp が上書きするため rm は行わない)
@@ -67,16 +81,12 @@ symlink() {
             return
         fi
 
-        echo -n "Warning: $target already exists. Overwrite? (y/N): "
-        read -r answer
-        if [[ "$answer" =~ ^[Yy]$ ]]; then
-            # バックアップを作成して上書き
-            rm -rf "$target"
-            echo "Create link: $target"
-            ln -snf "$source" "$target"
-        else
-            echo "Skipped: $target"
-        fi
+        # 退避してから上書き (確認なし。実ファイル・実ディレクトリは .bak に残る)
+        local backup="$target.bak.$(date +%Y%m%d%H%M%S)"
+        echo "Backing up: $target -> $backup"
+        mv "$target" "$backup"
+        echo "Create link: $target"
+        ln -s "$source" "$target"
     else
         echo "Create link: $target"
         ln -s "$source" "$target"
@@ -160,6 +170,9 @@ symlink "$SCRIPT_DIR/.setenv.wsl"   "$HOME/.setenv.wsl"
 symlink "$SCRIPT_DIR/.setenv.mac"   "$HOME/.setenv.mac"
 symlink "$SCRIPT_DIR/.setenv.linux"   "$HOME/.setenv.linux"
 
+# ai-cli (プロバイダ切替ディスパッチャ。実処理は下記3つのCLIに委譲)
+symlink "$SCRIPT_DIR/scripts/ai-cli.py" "$HOME/.local/bin/ai-cli"
+
 # gemini-cli
 symlink "$SCRIPT_DIR/scripts/gemini-cli.py" "$HOME/.local/bin/gemini-cli"
 
@@ -172,9 +185,7 @@ symlink "$SCRIPT_DIR/scripts/claude-cli.py" "$HOME/.local/bin/claude-cli"
 # Git / Vim / Config
 symlink "$SCRIPT_DIR/.gitconfig"    "$HOME/.gitconfig"
 symlink "$SCRIPT_DIR/.vimrc"        "$HOME/.vimrc"
-symlink "$SCRIPT_DIR/.config/gemini-cli" "$HOME/.config/gemini-cli"
-symlink "$SCRIPT_DIR/.config/chatgpt-cli" "$HOME/.config/chatgpt-cli"
-symlink "$SCRIPT_DIR/.config/claude-cli" "$HOME/.config/claude-cli"
+symlink "$SCRIPT_DIR/.config/ai-cli" "$HOME/.config/ai-cli"
 symlink "$SCRIPT_DIR/.config/git"    "$HOME/.config/git"
 symlink "$SCRIPT_DIR/.config/gh"     "$HOME/.config/gh"
 symlink "$SCRIPT_DIR/.config/nvim"   "$HOME/.config/nvim"
@@ -187,6 +198,8 @@ symlink "$SCRIPT_DIR/.claude/hooks" "$HOME/.claude/hooks"
 symlink "$SCRIPT_DIR/.claude/statusline.sh" "$HOME/.claude/statusline.sh"
 symlink "$SCRIPT_DIR/.claude/agents" "$HOME/.claude/agents"
 symlink "$SCRIPT_DIR/.claude/skills" "$HOME/.claude/skills"
+# Serena (複数プロジェクトを activate_project で切り替えるためのカスタムコンテキスト)
+symlink "$SCRIPT_DIR/.claude/serena/claude-code-multi.yml" "$HOME/.serena/contexts/claude-code-multi.yml"
 
 # Gemini / Antigravity
 symlink "$SCRIPT_DIR/.gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md"
@@ -260,9 +273,10 @@ esac
 
 # 5. 実行権限の付与
 find . -name "*.sh" -exec chmod a+x {} +
+chmod +x "$SCRIPT_DIR/scripts/ai-cli.py"
 chmod +x "$SCRIPT_DIR/scripts/gemini-cli.py"
 chmod +x "$SCRIPT_DIR/scripts/chatgpt-cli.py"
 chmod +x "$SCRIPT_DIR/scripts/claude-cli.py"
-chmod +x ~/.config/git/hooks/*
+chmod +x ~/.config/git/hooks/* 2>/dev/null || true
 
 echo "Done!"

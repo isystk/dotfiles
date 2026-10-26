@@ -66,12 +66,42 @@
     st = status
     sa = stash --all          # 無視設定や未追跡ファイルも含めて全てスタッシュ
     co = checkout
-    up = pull --rebase        # 最新を取り込んで自分のコミットを上に乗せる
-    pu = push -u origin       # 初回push時に上流ブランチも同時に設定
+    sw = switch
     ad = add
     rmc = rm -r --cached      # Gitの管理対象から除外する
+    root = rev-parse --show-toplevel # リポジトリのルートを表示
+    alias = config --get-regexp ^alias\\. # エイリアス一覧
+
+    # コミット・取り消し
     ca = commit --amend       # 直前のコミットメッセージや内容を修正
     cr = commit --amend --no-edit --reset-author # 直前のコミットの作成者と日時を更新
+    # AIにメッセージを作らせ、それを初期値としてVimを開く
+    cm = "!f() { \
+        BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null); \
+        BRANCH=${BRANCH##*/}; \
+        AI_MSG=$(git diff --cached | ai-cli -t git-commit); \
+        git commit -e -m \"#[$BRANCH] $AI_MSG\"; \
+    }; f"
+    wip = "!git add -A && git commit -m 'WIP' --no-verify" # 作業途中の内容を一時コミット
+    undo = reset --soft HEAD~  # 直前のコミットを取り消し、変更はステージに残す
+    unstage = restore --staged # ステージから外す
+    discard = restore          # 作業ツリーの変更を破棄
+    # 指定コミットへのfixupコミットを作り、autosquashで即統合
+    fixup = "!f() { git commit --fixup=\"$1\" && GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash \"$1\"~; }; f"
+
+    # pull・push
+    up = pull --rebase        # 最新を取り込んで自分のコミットを上に乗せる
+    pu = push -u origin       # 初回push時に上流ブランチも同時に設定
+    pf = push --force-with-lease # rebase後に比較的安全にforce push
+
+    # rebase
+    r1 = rebase -i HEAD~       # 1つ前のコミットをまとめて修正・削除・分割（r2, r3...も同様）
+    r2 = rebase -i HEAD~~
+    r3 = rebase -i HEAD~~~
+    r4 = rebase -i HEAD~~~~
+    r5 = rebase -i HEAD~~~~~
+
+    # ブランチ作成・確認・整理
     # リモートにあれば追跡、なければ --no-track でブランチを作成
     cb = "!f() { \
         case \"$2\" in \
@@ -80,19 +110,15 @@
             *)            git checkout -b \"$1\" ${2:+\"$2\"} ;; \
         esac; \
     }; f"
-    # AIにメッセージを作らせ、それを初期値としてVimを開く
-    cm = "!f() { \
-        BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null); \
-        BRANCH=${BRANCH##*/}; \
-        AI_MSG=$(git diff --cached | gemini-cli -t git-commit); \
-        git commit -e -m \"#[$BRANCH] $AI_MSG\"; \
-    }; f"
-
-    # ブランチ・タグ確認
     ba = branch -a            # ローカル・リモート全ブランチ表示
     br = branch -r            # リモート全ブランチ表示
-    bd = branch -D            # 強制的にローカルブランチを削除
     bv = branch -vv           # 詳細付きブランチ表示
+    recent = for-each-ref --sort=-committerdate --count=15 --format='%(committerdate:relative)\\t%(refname:short)' refs/heads/ # 最近触ったブランチ
+    bd = branch -D            # 強制的にローカルブランチを削除
+    gone = "!git branch -vv | awk '/: gone]/{print $1}' | xargs -r git branch -D" # リモートで削除済み([gone])のローカルブランチを一括削除
+    cleanup = "!git branch --merged main | grep -vE '^\\*|main|master' | xargs -r git branch -d" # mainにマージ済みのローカルブランチを削除
+
+    # タグ確認
     ta = "!f() { git tag && git ls-remote --tags origin | awk '/^(.+)$/ {print $2}' ; }; f" # リモート含めた全タグ表示
     tr = "!f() { git ls-remote --tags origin | awk '/^(.+)$/ {print $2}' ; }; f" # リモート全タグ表示
 
@@ -100,26 +126,23 @@
     ls = log --stat --oneline  # 変更ファイル統計付きの1行ログ
     lp = log -p                # 差分（パッチ）付きログ
     ll = log --all --graph --date=iso --pretty=format:'%Cgreen%h %ad%x08%x08%x08%x08%x08%x08%x08%x08%x08 %Cblue%cn %Cred%d %Creset%s' # グラフ付き詳細ログ
+    last = log -1 --stat       # 直前のコミットの概要
     lu = "!f() { git log --all --stat --author=$1 ;}; f"  # 作成者でログを検索
     lf = "!f() { git log --all --follow -p -- $1 ;}; f"   # ファイル名でログを検索
+    bl = blame -w -C           # 空白差分と移動・コピー元を考慮したblame
     ranking-all = shortlog -sn --no-merges # 全期間のコミット数ランキング
-    ranking = shortlog -sn --no-merges --after='date +%Y/%m/01' --before='date +%Y/%m/%d' # 今月のランキング
+    ranking = "!git shortlog -sn --no-merges --since=\"$(date +%Y-%m-01)\"" # 今月のランキング
 
     # 差分比較（diff）
     di = diff
     dn = diff --name-only      # 差分があるファイル名のみ表示
+    dc = diff --cached         # ステージ済みの差分
+    dw = diff --word-diff      # 単語単位の差分（日本語ドキュメントで有効）
     d1 = diff HEAD~            # 1つ前のコミットと比較（d2, d3...も同様）
     d2 = diff HEAD~~
     d3 = diff HEAD~~~
     d4 = diff HEAD~~~~
     d5 = diff HEAD~~~~~
-
-    # 変更の取り消し・修正
-    r1 = rebase -i HEAD~       # 1つ前のコミットをまとめて修正・削除・分割（r2, r3...も同様）
-    r2 = rebase -i HEAD~~
-    r3 = rebase -i HEAD~~~
-    r4 = rebase -i HEAD~~~~
-    r5 = rebase -i HEAD~~~~~
 
     # 変更があったファイルをまとめてVimで開く
     edit = "!f() { git status -s | cut -b 4- | grep -v '\\/$' | uniq ; }; vi `f`"

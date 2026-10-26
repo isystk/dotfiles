@@ -95,18 +95,31 @@
 | **基本操作**  | `st` / `ad`          | 状態確認 / ステージング                     |
 |           | `ca` / `cr`          | 直前コミット修正 / 作成者・日時を現在に更新して修正       |
 |           | `cm`                 | **【AI】** 差分からメッセージを生成しVimで編集      |
-|           | `co` / `cb`          | ブランチ切替 / 新規ブランチ作成                 |
-|           | `bd` / `bv`          | ブランチ削除 / ブランチ情報表示（追跡先含む）          |
+|           | `co` / `sw`          | ブランチ切替 (`checkout` / `switch`)     |
+|           | `cb`                 | 新規ブランチ作成（リモートにあれば追跡）              |
 |           | `sa`                 | 未追跡・無視ファイルも含め全スタッシュ               |
 |           | `rmc`                | Gitの管理対象から除外する                    |
+|           | `root` / `alias`     | リポジトリのルート表示 / エイリアス一覧             |
+| **取り消し**  | `undo`               | 直前のコミットを取り消し、変更はステージに残す (`reset --soft HEAD~`) |
+|           | `unstage` / `discard` | ステージから外す / 作業ツリーの変更を破棄            |
+|           | `fixup <commit>`     | 指定コミットへのfixupを作り autosquash で即統合   |
+|           | `wip`                | 作業途中の内容を一時コミット (`--no-verify`)      |
 | **同期**    | `up`                 | 同期,up,最新の取得と再配置 (`pull --rebase`) |
 |           | `pu`                 | 初回プッシュと追跡設定 (`push -u origin`)    |
+|           | `pf`                 | rebase後の安全なforce push (`--force-with-lease`) |
+| **ブランチ**  | `ba` / `br` / `bv`   | 全ブランチ / リモートのみ / 追跡先付き表示          |
+|           | `recent`             | 最近コミットしたブランチ15件を新しい順に表示           |
+|           | `bd`                 | ローカルブランチを強制削除                     |
+|           | `gone`               | リモートで削除済み (`[gone]`) のローカルブランチを一括削除 |
+|           | `cleanup`            | `main` にマージ済みのローカルブランチを削除         |
 | **確認・ログ** | `ll` / `ls`          | **グラフ付き詳細ログ** / 統計付き1行ログ          |
+|           | `last`               | 直前のコミットの概要 (`log -1 --stat`)       |
 |           | `lu` / `lf`          | 作成者でログを検索 / ファイル名でログを検索           |
-|           | `ba` / `br`          | 全ブランチ表示 / リモートのみ表示                |
+|           | `bl`                 | 空白差分・移動/コピー元を考慮した `blame`         |
 |           | `ta` / `tr`          | 全タグ表示 / リモートタグのみ表示                |
 |           | `ranking` / `-all`   | 今月のコミット数ランキング / 全期間ランキング (著者別) |
 | **差分・修正** | `di` / `dn`          | 差分表示 / 差分のあるファイル名のみ表示             |
+|           | `dc` / `dw`          | ステージ済みの差分 / 単語単位の差分（日本語向け）        |
 |           | `d1` 〜 `d5`          | 直近 1 〜 5 つ前のコミットとの比較              |
 |           | `r1` 〜 `r5`          | 直近 1 〜 5 つのコミットを `rebase -i`      |
 |           | `edit` / `-unmerged` | 変更あり（または衝突中）ファイルを一括Vim展開          |
@@ -125,6 +138,9 @@
 |                 | `[dir]` / `cd [dir]`              | ディレクトリ名のみで移動 / **【enhancd】** 曖昧検索移動                 |
 | **編集・AI**       | `vi` / `nvim-ide`                 | Neovim起動（Neo-tree非表示、`<C-n>`/`<leader>e`で手動表示） / パネル展開モードでNeovim起動（ClaudeCode+ターミナル+Neo-tree表示） |
 |                 | `history`                         | 日時付き履歴表示                                          |
+| **Claude Code**   | `deepseek on`                     | Claude Code の接続先を DeepSeek へ切替（そのターミナルセッションのみ。`claude` の再起動が必要）。`scripts/deepseek.zsh` を source するエイリアス。モデルは `DEEPSEEK_CC_MODEL`／`DEEPSEEK_MODEL`（既定 `deepseek-flash`）。APIキーは `DEEPSEEK_API_KEY`、未設定なら `~/.config/deepseek/api_key`（`DEEPSEEK_API_KEY_FILE` で変更）を読む |
+|                 | `deepseek off`                    | Anthropic（既定）へ戻す（そのターミナルセッションのみ。`claude` の再起動が必要） |
+|                 | `deepseek status`                 | 現在の切替状態（セッションの環境変数・`claude` ラッパーの有無・`~/.setenv.local` の残留ブロック）を表示 |
 | **比較**          | `diff` / `zdiff`                  | 標準的な差分表示 / zip内ファイルの差分表示                            |
 | **出力・連携**       | **`copy`**                        | コマンドの結果をクリップボードへコピー<br/>例：`echo "text" \| copy`     |
 |                 | **`open`**                        | ブラウザで指定したURLを開く<br/>例：`open https://www.google.com` |
@@ -140,31 +156,43 @@ AI 連携や GitHub CLI のラッパー機能。
 
 | 分類               | コマンド                | 内容 / 実行例                                                  |
 |------------------|---------------------|-----------------------------------------------------------|
-| **AI ツール**       | `gen-pr`            | 差分から PR 説明文を自動生成                                          |
-|                  | `gen-readme`        | GithubのREADMEを自動生成                                        |
-|                  | `gen-blog`          | マークダウン形式で記事を生成                                            |
-|                  | `gen-blog-thumbnail` | ブログ記事タイトルからアイキャッチ画像を生成<br/>例：`run gen-blog-thumbnail 'タイトル' out.png`  |
-|                  | `gen-marp`          | Marpスライドやプレゼン原稿を自動生成・変換します。                               |
-|                  | `gen-voice`         | マークダウンから音声ファイルを生成します。                                     |
-|                  | `gen-video`         | PDFと音声ファイルを組み合わせて動画を生成します。                                |
-|                  | `audio-transcribe`  | 音声ファイルの文字起こし（`file-task.sh`を利用）<br/>例：`run audio-transcribe meets.mp3`  |
-| **GitHub 操作**    | `github`            | Github PRを選択して操作(ブラウザで開く、チェックアウト、マージ、AIレビュー)              |
-| **Docker 操作**    | `docker`            | 実行中のコンテナ一覧から選択して操作(コンテナに入る、 ログ / 詳細情報 / 変更差分 の確認、再起動、 削除) |
-|                  | `docker prune`      | 未使用のイメージ、コンテナ、ボリュームを確認してから削除                              |
-| **MySQL 操作**     | `mysql`             | MySQLデータベースに接続して操作(ログイン、インポート、エクスポート)                     |
-|                  | `mysql query`       | MySQLデータベースに指定のSQLを実行                                     |
-| **WordPress 操作** | `wordpress`         | WordPressサイトの管理(投稿一覧、ブラウザで開く、削除、カテゴリー一覧)                  |
-| **ファイル操作**   | `web-screenshot`    | Webページを画像ファイルに変換します。                                    |
-|                  | `images-to-pdf`     | 画像ファイルをPDFに変換します。                                          |
-|                  | `pdf-to-images`     | PDFファイルを画像ファイルに変換します。                                          |
-|                  | `cleanup`           | 不要なメタデータファイル（Zone.Identifierと.DS_Store）を一括削除              | 
-|                  | `find-crlf`         | CRLFファイルを検索、確後後にLFに変換                                     |
-|                  | `wsl-interop`       | powershell.exe連携が壊れた際の応急処置（binfmt_misc再登録）              |
-| **開発エディタ設定**   | `vscode backup / restore`     | VSCodeの設定ファイルをバックアップ / リストア          |
-|                  | `antigravity backup / restore`     | Antigravityの設定ファイルをバックアップ / リストア          |
-| **ファイルリスト同期** | `backup push`       | `~/.backup-files`記載のパスを同期先ディレクトリへバックアップ（BACKUP_DEST未設定時は`/mnt/c/Users/{ユーザー}/backups`） |
-|                  | `backup pull`       | 同期先ディレクトリからローカルへリストア                                        |
-|                  | `backup check-sync` | 最後の同期日時を表示し、必要ならバックアップを実行（Zshログイン時にWSLのみ自動実行）              |
+| **生成**           | `pr-gen`            | 差分から PR 説明文を生成                                            |
+|                  | `blog-gen`          | Markdown 形式で記事を生成                                        |
+|                  | `blog-thumb`        | 記事タイトルからアイキャッチ画像を生成<br/>例：`run blog-thumb 'タイトル' out.png` |
+|                  | `slide-gen`         | Marp スライド・プレゼン原稿を生成                                      |
+|                  | `voice-gen`         | Markdown から音声を生成（VOICEVOX）                                 |
+|                  | `video-gen`         | PDF と音声から動画を生成                                            |
+|                  | `audio-transcribe`  | 音声ファイルの文字起こし（`file-task.sh`を利用）<br/>例：`run audio-transcribe meets.mp3` |
+| **変換**           | `image-opt`         | 画像を Web 用に最適化（1200px・圧縮・EXIF 削除）。元ファイルを残し同フォルダに `_web` 付きで出力<br/>例：`run image-opt ~/pics/a.jpg ~/pics/`<br/>オプション：`-w` 最大幅（既定1200） `-q` 品質（既定82） `-o` 出力先 |
+|                  | `web-shot`          | Web ページを画像に変換                                             |
+|                  | `image-to-pdf`      | 画像を PDF に変換                                               |
+| **GitHub**         | `github`            | PR を選択して開く／チェックアウト／マージ／AI レビュー                          |
+| **データベース**    | `mysql`             | MySQL 操作（ログイン／インポート／エクスポート）                            |
+|                  | `mysql query`       | 指定 SQL を実行                                               |
+| **Docker**         | `docker`            | コンテナ操作（入る／ログ／差分／再起動／削除）                                |
+|                  | `docker prune`      | 未使用のコンテナ・イメージ・ボリュームを確認して削除                             |
+| **WordPress**      | `wordpress`         | WordPress 管理（投稿一覧／表示／削除／カテゴリ）                           |
+| **セキュリティ**    | `netsec`            | 引数なしで検査項目を対話メニューから選択。引数付きなら直接実行（`run netsec devices` 等） |
+|                  | `netsec devices`    | LAN 接続デバイス一覧（IP/MAC/ベンダー/**端末種別**/ホスト名）。前回実行時との差分で「新規」「IP変更」を表示<br/>種別は MACベンダー・ホスト名・開いているポート（62078=iOS、88/445/548/5900/3283=macOS共有）から推定。62078 を過去に検出した機器は記憶して表示<br/>オプション：`--deep [秒]` Mac/iOS の判定待ち（省略時30秒） `--no-probe` 種別推定なし（高速） `--no-vendor` ベンダー照会なし `--no-save` ベースライン更新なし |
+|                  | `netsec ports`      | LAN 内機器の危険ポート露出検査（Telnet/SMB/RDP/VNC/Docker API/DB 等）<br/>例：`run netsec ports --timeout 0.3` |
+|                  | `netsec conns`      | 外向き通信の一覧と宛先の評判判定（ASN・国・PTR・Spamhaus DNSBL）。0.0.0.0 待ち受けポートも表示 |
+|                  | `netsec arp`        | ARP テーブル異常検知（同一MAC複数IP・ゲートウェイの MAC 変化＝スプーフィング兆候）        |
+|                  | `netsec upnp`       | SSDP でルーター（IGD）を検出し、外部公開ポートマッピングを確認                        |
+|                  | `netsec audit`      | 上記全項目を実行して Markdown レポートを出力（メニューからは既定名 `~/net-audit-YYYYMMDD.md`）<br/>例：`run netsec audit --out ~/net-audit.md` |
+|                  | `netsec dnswin`     | Windows 側 `pktmon` で DNS を取得し WSL で解析（dnsTunneling 有効でも可）<br/>例：`run netsec dnswin --seconds 30`（UAC 承認が必要。`--keep` で pcapng を残す） |
+|                  | `netsec capture`    | Windows 側 `pktmon` でパケットを取得し pcapng 保存＋要約（通信相手ランキング・プロトコル内訳・DNS）。既定 30 秒<br/>例：`run netsec capture --ip 192.168.10.116 --port 443 --open`（UAC 承認要。`--open` で Windows の Wireshark に渡す）<br/>保存先：`%USERPROFILE%\netsec-captures\capture-YYYYmmdd-HHMMSS.pcapng`（`--out` で変更可）<br/>`--read <pcapng>` で保存済みファイルを要約だけやり直せる。件数は pktmon が同一パケットを複数コンポーネントで記録するため実数より多い（実測 5〜8 倍。順位は有効）。全パケット 30 秒で約 270 MB → `--pkt-size 128` で軽くなる<br/>`--sites` で「接続したサイト（ドメイン単位）」一覧を出す（DNS 応答＋TLS SNI、Wireshark 同梱 `tshark.exe` を使用）。例：`run netsec capture --seconds 60 --pkt-size 128 --sites`<br/>**調べ方の型**：①取得開始 → ②調べたい操作を1つだけ行う → ③`PEER` とサイト一覧を読む。URL のパス・検索語は暗号化で不可（ページ履歴はブラウザ履歴で見る） |
+|                  | `netsec external`   | 公開IPを取得し、第三者スキャンDB（Shodan InternetDB）から「外から見えるポート」を確認。自前スキャンはしない |
+| **ファイル**        | `backup push`       | `~/.backup-files`記載のパスを同期先ディレクトリへバックアップ（BACKUP_DEST未設定時は`/mnt/c/Users/{ユーザー}/backups`） |
+|                  | `backup pull`       | 同期先ディレクトリからローカルへリストア                                      |
+|                  | `backup check-sync` | 最後の同期日時を表示し、必要ならバックアップを実行（Zshログイン時にWSLのみ自動実行）        |
+|                  | `file-clean`        | .DS_Store 等のメタデータファイルを削除                                 |
+|                  | `file-crlf`         | CRLF ファイルを検出して LF へ変換                                    |
+| **エディタ**        | `vscode backup / restore`      | VSCode の設定ファイルをバックアップ / リストア                     |
+|                  | `antigravity backup / restore` | Antigravity の設定ファイルをバックアップ / リストア                |
+| **メンテナンス**    | `doctor`            | 依存コマンドの有無を一括チェック（必須が不足なら終了コード1）                        |
+|                  | `update-all`        | apt・mise・npm グローバル・AI CLI をまとめて更新                            |
+|                  | `wsl-interop`       | powershell.exe 連携が壊れた際の応急処置（binfmt_misc 再登録）               |
+|                  | `wsl-compact`       | WSL の ext4.vhdx 肥大化対策。`fstrim`後、別 PowerShell で`wsl --shutdown`→`--set-sparse true`を実行（WSLが停止する。初回のみ） |
 
 ---
 
