@@ -6,10 +6,10 @@
 # 特徴:
 #   - Windows形式のパスとWSL形式のパスの両方に対応
 #   - 自動的に対象ファイルのあるディレクトリへ移動してから実行
-#   - gemini-cliコマンドの添付機能 (-a) を利用してファイルの内容を確実にAIへ渡す
+#   - ai-cliコマンドの添付機能 (-a) を利用してファイルの内容を確実にAIへ渡す
 #
 # 前提条件:
-#   - gemini-cli コマンドがインストールされ、"ai-read" テンプレートが設定されていること
+#   - ai-cli コマンドがインストールされ、"ai-read" テンプレートが設定されていること
 # ==============================================================================
 
 TEMPLATE=""
@@ -63,4 +63,4 @@ fi
 echo "📖 ファイルを読み込んでいます: $FILE_NAME"
 echo "🤖 解析中 (現在のディレクトリ: $(pwd))..."
 echo "---"
-(echo "指示: $USER_INSTRUCTION";) | gemini-cli -t ${TEMPLATE:-ai-read} -a "$FILE_NAME"
+(echo "指示: $USER_INSTRUCTION";) | ai-cli -t ${TEMPLATE:-ai-read} -a "$FILE_NAME"

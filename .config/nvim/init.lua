@@ -319,10 +319,15 @@ local function telescope_find_files_win_path()
   local function recent_files()
     local results = {}
     local seen = {}
+    -- カレントディレクトリ配下のみ対象にする
+    local cwd_prefix = vim.fn.getcwd() .. '/'
+    local function in_cwd(path)
+      return vim.fn.fnamemodify(path, ':p'):sub(1, #cwd_prefix) == cwd_prefix
+    end
 
     -- 今セッションで実際に開いた順(直近優先)。session_mru自体が既にMRU順のため未ソート
     for _, abs_path in ipairs(session_mru) do
-      if vim.fn.filereadable(abs_path) == 1 then
+      if in_cwd(abs_path) and vim.fn.filereadable(abs_path) == 1 then
         local rel = vim.fn.fnamemodify(abs_path, ':.')
         if not seen[rel] then
           seen[rel] = true
@@ -333,7 +338,7 @@ local function telescope_find_files_win_path()
 
     -- 今セッションで未アクセスの過去履歴をshadaのoldfilesから補完(重複はパス表記ゆれ込みでdedup)
     for _, f in ipairs(vim.v.oldfiles) do
-      if vim.fn.filereadable(f) == 1 then
+      if in_cwd(f) and vim.fn.filereadable(f) == 1 then
         local rel = vim.fn.fnamemodify(f, ':.')
         if not seen[rel] then
           seen[rel] = true
@@ -402,6 +407,43 @@ local function telescope_find_files_win_path()
     end,
   })
   current_picker:find()
+end
+
+-- Find References: .gitignore対象のファイルを除外してtelescopeに表示する。
+-- 判定はgit check-ignore(--no-index: 追跡済みでもignoreパターン一致なら除外)。git管理外なら除外しない。
+local function telescope_lsp_references_no_ignored()
+  vim.lsp.buf.references(nil, {
+    on_list = function(res)
+      local items = res.items
+      local paths, seen = {}, {}
+      for _, it in ipairs(items) do
+        if not seen[it.filename] then
+          seen[it.filename] = true
+          table.insert(paths, it.filename)
+        end
+      end
+      local r = vim.system({ 'git', 'check-ignore', '--no-index', '--stdin' },
+        { stdin = table.concat(paths, '\n') .. '\n', text = true }):wait()
+      if r.code == 0 and r.stdout then
+        local ignored = {}
+        for line in r.stdout:gmatch('[^\n]+') do ignored[line] = true end
+        items = vim.tbl_filter(function(it) return not ignored[it.filename] end, items)
+      end
+      if #items == 0 then
+        vim.notify('参照なし', vim.log.levels.INFO)
+        return
+      end
+      require('telescope.pickers').new({}, {
+        prompt_title = '参照 (.gitignore除外)',
+        finder = require('telescope.finders').new_table({
+          results = items,
+          entry_maker = require('telescope.make_entry').gen_from_quickfix({}),
+        }),
+        sorter = require('telescope.config').values.generic_sorter({}),
+        previewer = require('telescope.config').values.qflist_previewer({}),
+      }):find()
+    end,
+  })
 end
 
 -- ビジュアル選択中の<C-f>は、選択テキストを検索クエリへ自動セットしてファイル内検索を開く
@@ -604,9 +646,7 @@ require('lazy').setup({
             vim.lsp.buf.definition()
           end, opts)
           vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-          vim.keymap.set('n', 'gr', function()
-            require('telescope.builtin').lsp_references()
-          end, opts)
+          vim.keymap.set('n', 'gr', telescope_lsp_references_no_ignored, opts)
           vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
           vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
           vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
@@ -742,7 +782,7 @@ require('lazy').setup({
                 local buf = vim.api.nvim_win_get_buf(win)
                 local buftype = vim.bo[buf].buftype
                 local ft = vim.bo[buf].filetype
-                if buftype ~= 'terminal' and ft ~= 'neo-tree' then
+                if buftype ~= 'terminal' and ft ~= 'neo-tree' and ft ~= 'ghpr' then
                   file_win = win
                   break
                 end
@@ -983,101 +1023,9 @@ require('lazy').setup({
               end)
             end
 
-            -- HEAD時点の内容(左)とワーキングツリーの内容(右)をfloatの左右splitで
-            -- 比較表示する。`git show HEAD:relpath`はgitルートからの相対パスが必要なため
-            -- 変換する。新規/追跡外ファイル等HEADに存在しない場合は左を空として扱う。
-            local git_root = vim.fn.systemlist({
-              'git', '-C', vim.fn.fnamemodify(path, ':h'), 'rev-parse', '--show-toplevel',
-            })[1]
-            local relpath = path
-            if vim.v.shell_error == 0 and git_root and git_root ~= '' then
-              relpath = path:sub(#git_root + 2)
-            end
-
-            local head_content = vim.fn.systemlist({ 'git', 'show', 'HEAD:' .. relpath })
-            if vim.v.shell_error ~= 0 then
-              head_content = {}
-            end
-            local work_content = vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {}
-
-            if #head_content == 0 and #work_content == 0 then
-              vim.notify('差分を表示できません: ' .. path, vim.log.levels.WARN)
-              return
-            end
-
-            -- 前回開いたdiff floatが残っていれば閉じてから新規に開く
-            if _G.__git_status_diff_wins then
-              pcall(vim.api.nvim_win_close, _G.__git_status_diff_wins.left, true)
-              pcall(vim.api.nvim_win_close, _G.__git_status_diff_wins.right, true)
-              _G.__git_status_diff_wins = nil
-            end
-
-            local buf_left = vim.api.nvim_create_buf(false, true)
-            local buf_right = vim.api.nvim_create_buf(false, true)
-            for _, buf in ipairs({ buf_left, buf_right }) do
-              vim.bo[buf].buftype = 'nofile'
-              vim.bo[buf].bufhidden = 'wipe'
-            end
-            pcall(vim.api.nvim_buf_set_name, buf_left, 'diff://head/' .. path)
-            pcall(vim.api.nvim_buf_set_name, buf_right, 'diff://working/' .. path)
-            vim.api.nvim_buf_set_lines(buf_left, 0, -1, false, head_content)
-            vim.api.nvim_buf_set_lines(buf_right, 0, -1, false, work_content)
-            local ft = vim.filetype.match({ filename = path })
-            if ft then
-              vim.bo[buf_left].filetype = ft
-              vim.bo[buf_right].filetype = ft
-            end
-
-            local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
-            local total_width = math.min(math.max(math.floor(ui.width * 0.9), 60), 200)
-            local max_lines = math.max(#head_content, #work_content)
-            local height = math.min(math.max(max_lines + 2, 10), math.floor(ui.height * 0.8))
-            local width = math.floor((total_width - 1) / 2)
-            local row = math.floor((ui.height - height) / 2)
-            local col = math.floor((ui.width - total_width) / 2)
-
-            local win_left = vim.api.nvim_open_win(buf_left, true, {
-              relative = 'editor',
-              style = 'minimal',
-              border = 'rounded',
-              width = width,
-              height = height,
-              row = row,
-              col = col,
-              title = ' HEAD ',
-              title_pos = 'center',
-            })
-            local win_right = vim.api.nvim_open_win(buf_right, true, {
-              relative = 'editor',
-              style = 'minimal',
-              border = 'rounded',
-              width = width,
-              height = height,
-              row = row,
-              col = col + width + 2,
-              title = ' Working Tree ',
-              title_pos = 'center',
-            })
-            _G.__git_status_diff_wins = { left = win_left, right = win_right }
-
-            vim.api.nvim_win_call(win_left, function() vim.cmd('diffthis') end)
-            vim.api.nvim_win_call(win_right, function() vim.cmd('diffthis') end)
-            vim.wo[win_left].wrap = false
-            vim.wo[win_right].wrap = false
-
-            local function close_both()
-              pcall(vim.api.nvim_win_close, win_left, true)
-              pcall(vim.api.nvim_win_close, win_right, true)
-              _G.__git_status_diff_wins = nil
-            end
-            for _, buf in ipairs({ buf_left, buf_right }) do
-              vim.keymap.set('n', 'q', close_both, { buffer = buf, silent = true, nowait = true })
-              vim.keymap.set('n', '<Esc>', close_both, { buffer = buf, silent = true, nowait = true })
-            end
-
             -- filesystemパネル側でも同じファイルをreveal(ハイライト)する。
-            -- action='focus'はneo-treeウィンドウへフォーカスを奪うため、reveal後は
-            -- Working Tree側のfloatへフォーカスを戻す
+            -- action='focus'はneo-treeウィンドウへフォーカスを奪うため、reveal後は元のウィンドウへ戻す
+            local origin_win = vim.api.nvim_get_current_win()
             local ok_cmd, neotree_command = pcall(require, 'neo-tree.command')
             if ok_cmd then
               neotree_command.execute({
@@ -1089,8 +1037,8 @@ require('lazy').setup({
                 reveal_force_cwd = true,
               })
             end
-            if vim.api.nvim_win_is_valid(win_right) then
-              vim.api.nvim_set_current_win(win_right)
+            if vim.api.nvim_win_is_valid(origin_win) then
+              vim.api.nvim_set_current_win(origin_win)
             end
           end,
         },
@@ -1098,6 +1046,259 @@ require('lazy').setup({
     },
     config = function(_, opts)
       require('neo-tree').setup(opts)
+
+      -- git_statusパネルの右クリックメニュー(Show Diff)から呼ぶ。HEADとワーキングツリーをfloatで比較表示する
+      _G.__git_status_show_diff = function(path)
+        -- HEAD時点の内容(左)とワーキングツリーの内容(右)をfloatの左右splitで
+        -- 比較表示する。`git show HEAD:relpath`はgitルートからの相対パスが必要なため
+        -- 変換する。新規/追跡外ファイル等HEADに存在しない場合は左を空として扱う。
+        local git_root = vim.fn.systemlist({
+          'git', '-C', vim.fn.fnamemodify(path, ':h'), 'rev-parse', '--show-toplevel',
+        })[1]
+        local relpath = path
+        if vim.v.shell_error == 0 and git_root and git_root ~= '' then
+          relpath = path:sub(#git_root + 2)
+        end
+
+        local head_content = vim.fn.systemlist({ 'git', 'show', 'HEAD:' .. relpath })
+        if vim.v.shell_error ~= 0 then
+          head_content = {}
+        end
+        local work_content = vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {}
+
+        if #head_content == 0 and #work_content == 0 then
+          vim.notify('差分を表示できません: ' .. path, vim.log.levels.WARN)
+          return
+        end
+
+        -- 前回開いたdiff floatが残っていれば閉じてから新規に開く
+        if _G.__git_status_diff_wins then
+          pcall(vim.api.nvim_win_close, _G.__git_status_diff_wins.left, true)
+          pcall(vim.api.nvim_win_close, _G.__git_status_diff_wins.right, true)
+          _G.__git_status_diff_wins = nil
+        end
+
+        local buf_left = vim.api.nvim_create_buf(false, true)
+        local buf_right = vim.api.nvim_create_buf(false, true)
+        for _, buf in ipairs({ buf_left, buf_right }) do
+          vim.bo[buf].buftype = 'nofile'
+          vim.bo[buf].bufhidden = 'wipe'
+        end
+        pcall(vim.api.nvim_buf_set_name, buf_left, 'diff://head/' .. path)
+        pcall(vim.api.nvim_buf_set_name, buf_right, 'diff://working/' .. path)
+        vim.api.nvim_buf_set_lines(buf_left, 0, -1, false, head_content)
+        vim.api.nvim_buf_set_lines(buf_right, 0, -1, false, work_content)
+        local ft = vim.filetype.match({ filename = path })
+        if ft then
+          vim.bo[buf_left].filetype = ft
+          vim.bo[buf_right].filetype = ft
+        end
+
+        local ui = vim.api.nvim_list_uis()[1] or { width = 80, height = 24 }
+        local total_width = math.min(math.max(math.floor(ui.width * 0.9), 60), 200)
+        local max_lines = math.max(#head_content, #work_content)
+        local height = math.min(math.max(max_lines + 2, 10), math.floor(ui.height * 0.8))
+        local width = math.floor((total_width - 1) / 2)
+        local row = math.floor((ui.height - height) / 2)
+        local col = math.floor((ui.width - total_width) / 2)
+
+        local win_left = vim.api.nvim_open_win(buf_left, true, {
+          relative = 'editor',
+          style = 'minimal',
+          border = 'rounded',
+          width = width,
+          height = height,
+          row = row,
+          col = col,
+          title = ' HEAD ',
+          title_pos = 'center',
+        })
+        local win_right = vim.api.nvim_open_win(buf_right, true, {
+          relative = 'editor',
+          style = 'minimal',
+          border = 'rounded',
+          width = width,
+          height = height,
+          row = row,
+          col = col + width + 2,
+          title = ' Working Tree ',
+          title_pos = 'center',
+        })
+        _G.__git_status_diff_wins = { left = win_left, right = win_right }
+
+        vim.api.nvim_win_call(win_left, function() vim.cmd('diffthis') end)
+        vim.api.nvim_win_call(win_right, function() vim.cmd('diffthis') end)
+        vim.wo[win_left].wrap = false
+        vim.wo[win_right].wrap = false
+
+        local function close_both()
+          pcall(vim.api.nvim_win_close, win_left, true)
+          pcall(vim.api.nvim_win_close, win_right, true)
+          _G.__git_status_diff_wins = nil
+        end
+        for _, buf in ipairs({ buf_left, buf_right }) do
+          vim.keymap.set('n', 'q', close_both, { buffer = buf, silent = true, nowait = true })
+          vim.keymap.set('n', '<Esc>', close_both, { buffer = buf, silent = true, nowait = true })
+        end
+      end
+
+      -- ---- GitHub PR一覧パネル(git_statusパネルのさらに下、g:panels=1時のみ) ----
+      -- neo-tree sourceではなく自前のスクラッチバッファ(filetype='ghpr')で実装する。
+      -- 'gh pr list'の結果を表示し、右クリックメニュー(PopUpGhPr)でOpen Github/PR Checkoutを行う
+      local ghpr = { win = nil, buf = nil, items = {}, cwd = nil, last_fetch = 0 }
+
+      local function ghpr_open_url(url)
+        if vim.fn.has('mac') == 1 then
+          vim.fn.system('open ' .. vim.fn.shellescape(url))
+        elseif vim.env.WSL_DISTRO_NAME then
+          vim.fn.system('explorer.exe ' .. vim.fn.shellescape(url))
+        else
+          vim.notify('Open Github: mac/WSL以外は未対応', vim.log.levels.WARN)
+        end
+      end
+
+      local function ghpr_render(lines, items)
+        local buf = ghpr.buf
+        if not (buf and vim.api.nvim_buf_is_valid(buf)) then
+          return
+        end
+        ghpr.items = items or {}
+        vim.bo[buf].modifiable = true
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+        vim.bo[buf].modifiable = false
+        for i, item in ipairs(ghpr.items) do
+          vim.api.nvim_buf_add_highlight(buf, -1, item.isDraft and 'Comment' or 'Number', i - 1, 0, #('#' .. item.number))
+        end
+      end
+
+      local function ghpr_refresh()
+        if not (ghpr.buf and vim.api.nvim_buf_is_valid(ghpr.buf)) then
+          return
+        end
+        ghpr.last_fetch = vim.uv.now()
+        if vim.fn.executable('gh') == 0 then
+          ghpr_render({ '(gh コマンドが見つかりません)' })
+          return
+        end
+        vim.system(
+          { 'gh', 'pr', 'list', '--limit', '30', '--json', 'number,title,isDraft,url,headRefName' },
+          { cwd = ghpr.cwd, text = true },
+          vim.schedule_wrap(function(res)
+            if res.code ~= 0 then
+              ghpr_render({ '(PR取得失敗: gh auth/リモートを確認)' })
+              return
+            end
+            local ok, items = pcall(vim.json.decode, res.stdout)
+            if not ok or type(items) ~= 'table' then
+              ghpr_render({ '(PR取得失敗: 応答を解析できません)' })
+              return
+            end
+            if #items == 0 then
+              ghpr_render({ '(オープンなPRなし)' })
+              return
+            end
+            local lines = {}
+            for _, item in ipairs(items) do
+              table.insert(lines, string.format('#%d %s%s', item.number, item.isDraft and '[draft] ' or '', item.title))
+            end
+            ghpr_render(lines, items)
+          end)
+        )
+      end
+
+      local function ghpr_item_at_cursor()
+        if not (ghpr.win and vim.api.nvim_win_is_valid(ghpr.win)) then
+          return nil
+        end
+        return ghpr.items[vim.api.nvim_win_get_cursor(ghpr.win)[1]]
+      end
+
+      local function ghpr_checkout(item)
+        if vim.fn.confirm(string.format('PR #%d (%s) をチェックアウトしますか？', item.number, item.headRefName), '&Yes\n&No', 2) ~= 1 then
+          return
+        end
+        vim.system({ 'gh', 'pr', 'checkout', tostring(item.number) }, { cwd = ghpr.cwd, text = true }, vim.schedule_wrap(function(res)
+          if res.code == 0 then
+            vim.notify('PR Checkout: #' .. item.number .. ' (' .. item.headRefName .. ')')
+            vim.cmd('checktime')
+            pcall(function() require('neo-tree.sources.git_status').refresh() end)
+          else
+            vim.notify('PR Checkout失敗: ' .. vim.trim((res.stderr or '') .. (res.stdout or '')), vim.log.levels.ERROR)
+          end
+        end))
+      end
+
+      -- 右クリックメニュー(PopUpGhPr)から呼ぶ。textlock回避のためschedule必須
+      _G.__ghpr_popup_action = function(name)
+        vim.schedule(function()
+          local item = ghpr_item_at_cursor()
+          if not item then
+            return
+          end
+          if name == 'open_github' then
+            ghpr_open_url(item.url)
+          elseif name == 'checkout' then
+            ghpr_checkout(item)
+          end
+        end)
+      end
+
+      local function open_ghpr_panel(below_win)
+        if ghpr.win and vim.api.nvim_win_is_valid(ghpr.win) then
+          return
+        end
+        if not (below_win and vim.api.nvim_win_is_valid(below_win)) then
+          return
+        end
+        local fs_state = require('neo-tree.sources.manager').get_state('filesystem')
+        ghpr.cwd = (fs_state and fs_state.path) or vim.fn.getcwd()
+        vim.api.nvim_set_current_win(below_win)
+        vim.cmd('belowright split')
+        vim.cmd('enew') -- 複製されたneo-treeバッファから逃がす
+        local buf = vim.api.nvim_get_current_buf()
+        ghpr.win, ghpr.buf = vim.api.nvim_get_current_win(), buf
+        vim.bo[buf].buftype = 'nofile'
+        vim.bo[buf].bufhidden = 'wipe'
+        vim.bo[buf].swapfile = false
+        vim.bo[buf].filetype = 'ghpr'
+        vim.bo[buf].modifiable = false
+        vim.api.nvim_buf_set_name(buf, 'ghpr://pull-requests')
+        vim.wo[ghpr.win].winfixwidth = true
+        vim.wo[ghpr.win].number = false
+        vim.wo[ghpr.win].relativenumber = false
+        vim.wo[ghpr.win].wrap = false
+        vim.wo[ghpr.win].signcolumn = 'no'
+        vim.wo[ghpr.win].winbar = ' Pull Requests'
+        vim.api.nvim_win_set_height(ghpr.win, 10)
+
+        local function open_current()
+          local item = ghpr_item_at_cursor()
+          if item then
+            ghpr_open_url(item.url)
+          end
+        end
+        vim.keymap.set('n', '<CR>', open_current, { buffer = buf, silent = true, desc = 'PRをブラウザで開く' })
+        vim.keymap.set('n', '<2-LeftMouse>', open_current, { buffer = buf, silent = true })
+        vim.keymap.set('n', 'r', ghpr_refresh, { buffer = buf, silent = true, desc = 'PR一覧を更新' })
+        vim.api.nvim_create_autocmd('WinEnter', {
+          buffer = buf,
+          callback = function()
+            -- 連打でgh APIを叩きすぎないよう30秒以内は再取得しない
+            if vim.uv.now() - ghpr.last_fetch > 30000 then
+              ghpr_refresh()
+            end
+          end,
+        })
+        ghpr_render({ '(読み込み中...)' })
+        ghpr_refresh()
+      end
+
+      local function close_ghpr_panel()
+        if ghpr.win and vim.api.nvim_win_is_valid(ghpr.win) then
+          vim.api.nvim_win_close(ghpr.win, true)
+        end
+        ghpr.win, ghpr.buf = nil, nil
+      end
 
       -- filesystem(左サイドバー) + git_status(その下の分割、g:panels=1時のみ)を開く。
       -- git_statusはposition='current'指定のため、事前にfilesystem下へ分割を作ってから埋め込む
@@ -1130,6 +1331,8 @@ require('lazy').setup({
           position = 'current',
           dir = fs_state.path or vim.fn.getcwd(),
         })
+        -- git_statusの下にPR一覧を追加(git_statusは現在のウィンドウに表示されている)
+        open_ghpr_panel(vim.api.nvim_get_current_win())
         vim.api.nvim_set_current_win(fs_state.winid)
       end
 
@@ -1143,6 +1346,7 @@ require('lazy').setup({
           if gs_state and gs_state.winid and vim.api.nvim_win_is_valid(gs_state.winid) then
             vim.api.nvim_win_close(gs_state.winid, false)
           end
+          close_ghpr_panel()
           vim.cmd('Neotree close')
         else
           open_neotree_panels()
@@ -1432,7 +1636,7 @@ pcall(vim.api.nvim_del_augroup_by_name, 'nvim.popupmenu')
 _G.__popup_actions = {
   inspect = function() vim.cmd('Inspect') end,
   go_to_definition = function() vim.lsp.buf.definition() end,
-  references = function() require('telescope.builtin').lsp_references() end,
+  references = function() telescope_lsp_references_no_ignored() end,
   hover = function() vim.lsp.buf.hover() end,
   rename = function() vim.lsp.buf.rename() end,
   code_action = function() vim.lsp.buf.code_action() end,
@@ -1697,6 +1901,13 @@ _G.__neotree_git_popup_cmd = function(name)
   local winid = vim.api.nvim_get_current_win()
   vim.schedule(function()
     local state = require('neo-tree.sources.manager').get_state('git_status', nil, winid)
+    if name == 'show_diff' then
+      local node = state and state.tree and state.tree:get_node()
+      if node and node.type ~= 'directory' then
+        _G.__git_status_show_diff(node.path or node:get_id())
+      end
+      return
+    end
     if name == 'copy_path' then
       local node = state and state.tree and state.tree:get_node()
       if not node then
@@ -1717,12 +1928,19 @@ _G.__neotree_git_popup_cmd = function(name)
 end
 
 vim.cmd([[
+  nnoremenu 1.05 PopUpNeoTreeGit.Show\ Diff <Cmd>lua __neotree_git_popup_cmd('show_diff')<CR>
+  nnoremenu 1.07 PopUpNeoTreeGit.-0- <Nop>
   nnoremenu 1.10 PopUpNeoTreeGit.Stage\ File <Cmd>lua __neotree_git_popup_cmd('git_add_file')<CR>
   nnoremenu 1.11 PopUpNeoTreeGit.Unstage\ File <Cmd>lua __neotree_git_popup_cmd('git_unstage_file')<CR>
   nnoremenu 1.20 PopUpNeoTreeGit.-1- <Nop>
   nnoremenu 1.21 PopUpNeoTreeGit.Reset\ File <Cmd>lua __neotree_git_popup_cmd('git_revert_file')<CR>
   nnoremenu 1.30 PopUpNeoTreeGit.-2- <Nop>
   nnoremenu 1.31 PopUpNeoTreeGit.Copy\ Path <Cmd>lua __neotree_git_popup_cmd('copy_path')<CR>
+]])
+
+vim.cmd([[
+  nnoremenu 1.10 PopUpGhPr.Open\ Github <Cmd>lua __ghpr_popup_action('open_github')<CR>
+  nnoremenu 1.11 PopUpGhPr.PR\ Checkout <Cmd>lua __ghpr_popup_action('checkout')<CR>
 ]])
 
 vim.cmd([[
@@ -1782,6 +2000,9 @@ vim.keymap.set({ 'n', 'v' }, '<RightMouse>', function()
   if vim.bo.filetype == 'neo-tree' then
     local ok, source = pcall(vim.api.nvim_buf_get_var, 0, 'neo_tree_source')
     menu = (ok and source == 'git_status') and 'PopUpNeoTreeGit' or 'PopUpNeoTree'
+  end
+  if vim.bo.filetype == 'ghpr' then
+    menu = 'PopUpGhPr'
   end
   vim.schedule(function() vim.cmd('popup ' .. menu) end)
 end, { desc = '右クリックメニュー(カーソル位置確定後に表示)' })

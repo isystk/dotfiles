@@ -1,0 +1,25 @@
+{
+  "providers": {
+    "gemini": {
+      "text_model": "gemini-3.1-flash-lite",
+      "image_model": "gemini-3.1-flash-image-preview"
+    },
+    "chatgpt": {
+      "text_model": "gpt-5-mini",
+      "image_model": "gpt-image-2"
+    },
+    "claude": {
+      "text_model": "sonnet"
+    }
+  },
+  "routing": {
+    "default": {
+      "text": "gemini",
+      "image": "chatgpt"
+    },
+    "templates": {
+      "blog-thumb": "chatgpt",
+      "blog-thumb-image": "chatgpt"
+    }
+  }
+}

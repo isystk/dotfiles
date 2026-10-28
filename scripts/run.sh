@@ -17,9 +17,22 @@ usage() {
         END {
             parent = ""
             desc = ""
+            first = 1
             for (i = 1; i <= NR; i++) {
                 line = lines[i]
                 match(line, /^[[:space:]]*/); indent = RLENGTH
+
+                # カテゴリ見出し（#[カテゴリ名]）
+                if (line ~ /^[[:space:]]*#\[/) {
+                    cat = line
+                    sub(/^[[:space:]]*#\[/, "", cat)
+                    sub(/\][[:space:]]*$/, "", cat)
+                    printf "%s%s\n", (first ? "" : "\n"), cat
+                    first = 0
+                    parent = ""
+                    desc = ""
+                    continue
+                }
 
                 # 説明文の保持
                 if (line ~ /^[[:space:]]*## /) {
@@ -58,7 +71,7 @@ usage() {
 
                     if (desc != "") {
                         full = (parent != "" && cmd != parent) ? parent " " cmd : cmd
-                        printf "  %-25s %s\n", full, desc
+                        printf "  %-22s %s\n", full, desc
                         desc = ""
                     }
                 }
@@ -69,26 +82,80 @@ usage() {
 
 case "${1}" in
 
-    ## PR用の説明文を自動生成します。
-    gen-pr)
-        "${SCRIPT_DIR}/gen-pr.sh"
+    #[生成]
+
+    ## 差分からPR説明文を生成
+    pr-gen)
+        "${SCRIPT_DIR}/pr-gen.sh"
         ;;
 
-    ## Github用のREADME.mdを自動生成します。
-    gen-readme)
-        "${SCRIPT_DIR}/gen-readme.sh"
+    ## Markdown形式で記事を生成
+    blog-gen)
+        "${SCRIPT_DIR}/blog-gen.sh" "${@:2}"
         ;;
 
-    ## Github PRを選択して操作(ブラウザで開く、チェックアウト、マージ、AIレビュー)
+    ## 記事タイトルからアイキャッチ画像を生成
+    blog-thumb)
+        "${SCRIPT_DIR}/blog-thumb.sh" "${@:2}"
+        ;;
+
+    ## Marpスライド・プレゼン原稿を生成
+    slide-gen)
+        "${SCRIPT_DIR}/slide-gen.sh" "${@:2}"
+        ;;
+
+    ## Markdownから音声を生成（VOICEVOX）
+    voice-gen)
+        "${SCRIPT_DIR}/voice-gen.sh"
+        ;;
+
+    ## PDFと音声から動画を生成
+    video-gen)
+        "${SCRIPT_DIR}/video-gen.sh"
+        ;;
+
+    ## 音声ファイルを文字起こし
+    audio-transcribe)
+        "${SCRIPT_DIR}/file-task.sh" -t=transcribe "${@:2}"
+        ;;
+
+    #[変換]
+
+    ## 画像をWeb用に最適化（1200px・圧縮・EXIF削除）
+    image-opt)
+        "${SCRIPT_DIR}/image_opt.py" "${@:2}"
+        ;;
+
+    ## Webページを画像に変換
+    web-shot)
+        "${SCRIPT_DIR}/web_shot.py" "${@:2}"
+        ;;
+
+    ## 画像をPDFに変換
+    image-to-pdf)
+        "${SCRIPT_DIR}/image_to_pdf.py" "${@:2}"
+        ;;
+
+    #[GitHub]
+
+    ## PRを選択して開く／チェックアウト／マージ／AIレビュー
     github)
         "${SCRIPT_DIR}/ghs.sh" "${@:2}"
         ;;
-    
-    ## Dockerの管理を行います。
+
+    #[データベース]
+
+    ## MySQL操作（ログイン／インポート／エクスポート）
+    mysql)
+        "${SCRIPT_DIR}/mysql-ops.sh" "${@:2}"
+        ;;
+
+    #[Docker]
+
     docker)
         case "${2}" in
-       
-            ## 未使用のリソースを表示し、確認後に削除します。
+
+            ## 未使用リソースを確認して削除
             prune)
                 echo "--- 削除対象のプレビュー ---"
                 echo "[停止中のコンテナ]"
@@ -109,73 +176,32 @@ case "${1}" in
                     echo "キャンセルしました。"
                 fi
                 ;;
-      
-            ## Dockerコンテナに関する各種操作を行います。
+
+            ## コンテナ操作（入る／ログ／差分／再起動／削除）
             container | *)
                 "${SCRIPT_DIR}/d-manage.sh"
                 ;;
         esac
         ;;
 
-    ## MySQLデータベースに関する各種操作を行います。
-    mysql)
-        "${SCRIPT_DIR}/mysql-ops.sh" "${@:2}"
-        ;;
+    #[WordPress]
 
-    ## マークダウン形式で記事を生成します。
-    gen-blog)
-        "${SCRIPT_DIR}/gen-blog.sh" "${@:2}"
-        ;;
-
-    ## ブログ記事のアイキャッチ画像を生成します。
-    gen-blog-thumbnail)
-        "${SCRIPT_DIR}/gen-blog-thumbnail.sh" "${@:2}"
-        ;;
-
-    ## Marpスライドやプレゼン原稿を自動生成・変換します。
-    gen-marp)
-        "${SCRIPT_DIR}/gen-marp.sh" "${@:2}"
-        ;;
-
-    ## マークダウンから音声ファイルを生成します。
-    gen-voice)
-        "${SCRIPT_DIR}/gen-voice.sh"
-        ;;
-
-    ## 音声ファイルの文字起こしをします。
-    audio-transcribe)
-        "${SCRIPT_DIR}/file-task.sh" -t=transcribe "${@:2}"
-        ;;
-
-    ## PDFと音声ファイルを組み合わせて動画を生成します。
-    gen-video)
-        "${SCRIPT_DIR}/gen-video.sh"
-        ;;
-
-    ## WordPressの管理を行います。
+    ## WordPress管理（投稿一覧／表示／削除／カテゴリ）
     wordpress)
         "${SCRIPT_DIR}/wordpress.sh" "${@:2}"
         ;;
 
-    ## Webページを画像ファイルに変換します。
-    web-screenshot)
-        "${SCRIPT_DIR}/web_screenshot.py" "${@:2}"
+    #[ファイル]
+
+    ## バックアップ対象リストを同期（push／pull／check-sync）
+    backup)
+        "${SCRIPT_DIR}/backup.sh" "${@:2}"
         ;;
 
-    ## 画像ファイルをPDFに変換します。
-    images-to-pdf)
-        "${SCRIPT_DIR}/images_to_pdf.py" "${@:2}"
-        ;;
-
-    ## PDFファイルを画像ファイルに変換します。
-    pdf-to-images)
-        "${SCRIPT_DIR}/pdf_to_images.py" "${@:2}"
-        ;;
-
-    ## 不要なメタデータファイル（Zone.Identifierと.DS_Store）を一括削除します。
-    cleanup)
+    ## .DS_Store等のメタデータファイルを削除
+    file-clean)
         target="${2:-.}"
-        [ ! -d "$target" ] && echo "Error: $target not found." && return 1
+        [ ! -d "$target" ] && echo "Error: $target not found." && exit 1
         files=$(find "$target" \( -name "*:Zone.Identifier" -o -name ".DS_Store" \) -type f 2>/dev/null)
         if [ -z "$files" ]; then
             echo "✅ 削除対象はありません。"
@@ -187,13 +213,8 @@ case "${1}" in
         fi
         ;;
 
-    ## powershell.exe連携（エクスプローラー起動/クリップボード貼り付け等）が壊れた際の応急処置としてbinfmt_miscを再登録します。
-    wsl-interop)
-        echo ':WSLInterop:M::MZ::/init:P' | sudo tee /proc/sys/fs/binfmt_misc/register
-        ;;
-
-    ## CRLFファイルを検索後、確認してからLFに変換します。
-    find-crlf)
+    ## CRLFファイルを検出してLFへ変換
+    file-crlf)
         target="${2:-.}"
         echo "Searching for files to convert in: $target"
         # git ls-files の引数としてターゲットを渡す（-C は使わない）
@@ -217,17 +238,19 @@ case "${1}" in
         fi
         ;;
 
+    #[エディタ]
+
     vscode)
         case "${2}" in
-          
-            ## VSCodeの設定ファイルをバックアップします。
+
+            ## VSCodeの設定ファイルをバックアップ
             backup)
                 pushd "${BASE_DIR}/editors/VSCode"
                 ./rsync.sh pull
                 popd
                 ;;
 
-            ## VSCodeの設定ファイルをリストアします。
+            ## VSCodeの設定ファイルをリストア
             restore)
                 pushd "${BASE_DIR}/editors/VSCode"
                 ./rsync.sh push
@@ -238,15 +261,15 @@ case "${1}" in
 
     antigravity)
         case "${2}" in
-          
-            ## Antigravityの設定ファイルをバックアップします。
+
+            ## Antigravityの設定ファイルをバックアップ
             backup)
                 pushd "${BASE_DIR}/editors/Antigravity"
                 ./rsync.sh pull
                 popd
                 ;;
 
-            ## Antigravityの設定ファイルをリストアします。
+            ## Antigravityの設定ファイルをリストア
             restore)
                 pushd "${BASE_DIR}/editors/Antigravity"
                 ./rsync.sh push
@@ -255,17 +278,109 @@ case "${1}" in
         esac
         ;;
 
-    ## 指定ファイルリストの同期管理を行います。
-    backup)
-        "${SCRIPT_DIR}/backup.sh" "${@:2}"
+    #[メンテナンス]
+
+    ## 依存コマンドを一括チェック
+    doctor)
+        missing=0
+        check() {
+            # $1=必須(req)/任意(opt)  $2=コマンド名  $3=用途
+            if command -v "$2" >/dev/null 2>&1; then
+                printf "  [OK]      %-12s %s\n" "$2" "$3"
+            elif [ "$1" = req ]; then
+                printf "  [MISSING] %-12s %s\n" "$2" "$3"
+                missing=$((missing + 1))
+            else
+                printf "  [warn]    %-12s %s (任意)\n" "$2" "$3"
+            fi
+        }
+        echo "依存コマンドをチェックします。"
+        check req git        "バージョン管理"
+        check req curl       "HTTP取得"
+        check req rsync      "backup / エディタ設定同期"
+        check req jq         "JSON処理"
+        check req gh         "github / pr-gen"
+        check req docker     "docker / mysql / wordpress"
+        check req python3    "各種Pythonスクリプト"
+        check req mise       "ツール管理"
+        check opt ffmpeg     "video-gen / audio-transcribe"
+        check opt ai-cli     "pr-gen / blog-gen / slide-gen"
+        check opt claude     "Claude Code"
+        check opt mysql      "mysql"
+        check opt avahi-browse "netsec devices (mDNS探索)"
+        check opt dig        "netsec conns (ASN/DNSBL判定)"
+        check opt ping       "netsec devices/ports (ホスト探索)"
+        check opt tcpdump    "netsec dnswin (pcapng 解析)"
+        if [ -n "$WSL_DISTRO_NAME" ]; then
+            check req wsl.exe "WSL連携"
+            check req fstrim  "wsl-compact"
+        fi
+        if [ "$missing" -gt 0 ]; then
+            echo -e "\n必須コマンドが ${missing} 個不足しています。"
+            exit 1
+        fi
+        echo -e "\n必須コマンドはすべてそろっています。"
         ;;
 
-    ## ヘルプを表示します。
+    ## apt・mise・npm・AI CLIを一括更新
+    update-all)
+        step() { echo -e "\n=== $1 ==="; }
+        step "apt"
+        sudo apt update && sudo apt upgrade -y || echo "WARN: apt の更新に失敗しました。"
+        if command -v mise >/dev/null 2>&1; then
+            step "mise"
+            mise upgrade || echo "WARN: mise の更新に失敗しました。"
+        fi
+        if command -v npm >/dev/null 2>&1; then
+            step "npm (global)"
+            npm update -g || echo "WARN: npm の更新に失敗しました。"
+        fi
+        if command -v claude >/dev/null 2>&1; then
+            step "claude"
+            claude update || echo "WARN: claude の更新に失敗しました。"
+        fi
+        echo -e "\n更新が完了しました。"
+        ;;
+
+    ## powershell.exe連携の応急処置（binfmt_misc再登録）
+    wsl-interop)
+        echo ':WSLInterop:M::MZ::/init:P' | sudo tee /proc/sys/fs/binfmt_misc/register
+        ;;
+
+    ## WSLのext4.vhdx肥大化対策（fstrim＋sparse VHD）
+    wsl-compact)
+        if [ -z "$WSL_DISTRO_NAME" ]; then
+            echo "Error: WSL環境でのみ実行できます。"
+            exit 1
+        fi
+        echo "[1/2] 未使用ブロックを解放します (fstrim)"
+        sudo fstrim -av
+        echo "[2/2] sparse VHD を有効化します (wsl --shutdown → wsl --manage ${WSL_DISTRO_NAME} --set-sparse true)"
+        echo "※ --set-sparse は停止中のディストロにしか実行できないため、Windows側の別PowerShellで実行します。"
+        echo "※ WSLが停止し、このシェルも終了します。設定は一度のみで以降は自動で縮小されます。"
+        if confirm "sparse VHD を有効化しますか？"; then
+            powershell.exe -NoProfile -Command "Start-Process powershell -ArgumentList '-NoProfile','-Command','wsl --shutdown; wsl --manage ${WSL_DISTRO_NAME} --set-sparse true; Read-Host ''完了。Enterで閉じる'''"
+        else
+            echo "スキップしました。"
+        fi
+        ;;
+
+    #[セキュリティ]
+
+    ## 自宅ネットワークの簡易セキュリティ検査（引数なしで対話メニュー）
+    netsec)
+        "${SCRIPT_DIR}/netsec.sh" "${@:2}"
+        ;;
+
+    #[その他]
+
+    ## このヘルプを表示
     help|--help|-h)
         usage
         ;;
 
     *)
+
         usage
         ;;
 esac

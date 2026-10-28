@@ -5,3 +5,14 @@
 **/.claude/pr-knowledge-state.json
 CLAUDE.local.md
 HANDOVER.md
+*.local.md
+
+# 秘密情報
+.env
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+.setenv.local
+

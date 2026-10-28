@@ -1,0 +1,1 @@
+{ "name": "effort-router", "version": "0.1.0", "description": "依頼ごとに Haiku で難しさを判定し、effort を low/medium/high/xhigh から自動選択する（長引いたターンは途中で1段上げる）" }

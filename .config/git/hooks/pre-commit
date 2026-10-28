@@ -23,6 +23,19 @@ else
     echo "   brew install git-secrets での導入を推奨します。"
 fi
 
+# 1-2. gitleaks を実行（ステージ済みの変更のみ検査）
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --staged --redact --no-banner
+    cmdstatus=$?
+    if [ $cmdstatus -ne 0 ]; then
+        echo "❌ gitleaks が機密情報の可能性を検出しました。誤検知なら行末に gitleaks:allow を付けるか .gitleaksignore に登録してください。"
+        exit $cmdstatus
+    fi
+else
+    echo "⚠️  Warning: gitleaks が未インストールのため、gitleaksチェックをスキップしました。"
+    echo "   mise install での導入を推奨します（Mac/Linux/WSL共通）。"
+fi
+
 # 2. localリポジトリのgit-hooksも実行されるようにする
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 HOOK_NAME=$(basename "$0")

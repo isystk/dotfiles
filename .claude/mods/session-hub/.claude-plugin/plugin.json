@@ -1,0 +1,1 @@
+{ "name": "session-hub", "version": "0.1.0", "description": "セッションの状況（ターン経過時間・ツール実行履歴・編集ファイル・トークン消費）をサイドパネルにライブ表示。/hud で開閉", "types": "./types/index.d.ts" }

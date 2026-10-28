@@ -5,8 +5,8 @@ export GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
 # ChatGPT (OpenAI) APIキー
 export OPENAI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
 
-# Jev APIキー
-export TYPESAFE_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+# DeepSeek APIキー（deepseek-worker-ops スキルが使用。https://platform.deepseek.com/api_keys で発行）
+export DEEPSEEK_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
 
 # Wordpress URL
 export WORDPRESS_URL=https://blog.example.com/wp-json/wp/v2
