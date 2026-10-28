@@ -253,7 +253,6 @@
   "enabledPlugins": {
     "genshijin@genshijin": true,
     "superpowers@superpowers-marketplace": true,
-    "dig@kuu-marketplace": true,
     "php-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
@@ -267,12 +266,6 @@
       "source": {
         "source": "github",
         "repo": "obra/superpowers-marketplace"
-      }
-    },
-    "kuu-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "fumiya-kume/claude-code"
       }
     }
   },
@@ -288,11 +281,11 @@
   "theme": "dark",
   "preferredNotifChannel": "terminal_bell",
   "autoCompactEnabled": true,
+  "switchModelsOnFlag": false,
   "fileCheckpointingEnabled": true,
   "showTurnDuration": true,
   "teammateMode": "auto",
   "agentPushNotifEnabled": true,
   "voiceEnabled": true,
-  "prStatusFooterEnabled": true,
-  "switchModelsOnFlag": false
+  "prStatusFooterEnabled": true
 }

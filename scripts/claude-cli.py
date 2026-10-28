@@ -81,9 +81,10 @@ def build_user_text(template, stdin_text, attach_path=None):
     return user_text
 
 
-def build_command(model, user_text, system_text, attach_path):
+def build_command(model, system_text, attach_path):
+    # ユーザーメッセージは引数ではなく標準入力で渡す（Linuxの単一引数上限128KiB超過 E2BIG 回避）
     cmd = [
-        "claude", "-p", user_text,
+        "claude", "-p",
         "--model", model,
         "--output-format", "text",
         "--allowedTools", "Read",
@@ -95,9 +96,9 @@ def build_command(model, user_text, system_text, attach_path):
     return cmd
 
 
-def call_claude(cmd):
+def call_claude(cmd, user_text):
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, input=user_text, capture_output=True, text=True)
     except FileNotFoundError:
         sys.exit("エラー: claude コマンドが見つかりません。インストール・PATH設定を確認してください。")
 
@@ -124,8 +125,8 @@ def main():
     system_text = template.get("system")
     user_text = build_user_text(template, stdin_text, args.attach)
 
-    cmd = build_command(model, user_text, system_text, args.attach)
-    print(call_claude(cmd), end="")
+    cmd = build_command(model, system_text, args.attach)
+    print(call_claude(cmd, user_text), end="")
 
 
 if __name__ == "__main__":
