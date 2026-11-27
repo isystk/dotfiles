@@ -13,7 +13,6 @@
 .zshrc      text eol=lf
 .bashrc     text eol=lf
 .bash_profile text eol=lf
-.vimrc      text eol=lf
 .ideavimrc  text eol=lf
 
 # 4. Windows用ファイルは CRLF に固定

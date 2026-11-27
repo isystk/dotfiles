@@ -88,6 +88,7 @@ def build_command(model, system_text, attach_path):
         "--model", model,
         "--output-format", "text",
         "--allowedTools", "Read",
+        "--setting-sources", "",
     ]
     if system_text:
         cmd += ["--system-prompt", system_text]

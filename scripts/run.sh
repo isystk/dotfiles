@@ -11,6 +11,24 @@ confirm() {
     [[ $ans =~ ^[Yy] ]] && return 0 || return 1
 }
 
+# doctor / status 共通: install.sh が作る主要シンボリックリンク（"リンク|dotfiles内の実体"）
+DOTFILE_LINKS=(
+    "$HOME/.zshrc|.zshrc"
+    "$HOME/.gitconfig|.gitconfig"
+    "$HOME/.config/git|.config/git"
+    "$HOME/.config/nvim|.config/nvim"
+    "$HOME/.config/mise|.config/mise"
+    "$HOME/.claude/CLAUDE.md|.claude/CLAUDE.md"
+    "$HOME/.claude/settings.json|.claude/settings.json"
+    "$HOME/.claude/hooks|.claude/hooks"
+    "$HOME/.claude/skills|.claude/skills"
+)
+
+# $1=リンク $2=dotfiles内の実体(相対)。dotfilesを指す有効なリンクなら0
+link_ok() {
+    [ -L "$1" ] && [ "$(readlink -f "$1")" = "$(readlink -f "${BASE_DIR}/$2")" ]
+}
+
 usage() {
     awk '
         { lines[NR] = $0 }
@@ -80,7 +98,7 @@ usage() {
     ' "$0"
 }
 
-case "${1}" in
+case "${1:-help}" in
 
     #[生成]
 
@@ -162,11 +180,11 @@ case "${1}" in
                 docker ps -a -f status=exited -f status=created --format "{{.Names}} ({{.ID}})"
                 echo -e "\n[未使用のイメージ]"
                 docker images -f "dangling=true" --format "{{.Repository}}:{{.Tag}} ({{.ID}})"
-                echo -e "\n[未使用のボリューム]"
-                docker volume ls -qf dangling=true
+                # docker volume prune は匿名ボリューム(名前が64桁の16進)のみ削除するため、プレビューも合わせる
+                echo -e "\n[未使用の匿名ボリューム]"
+                docker volume ls -qf dangling=true | grep -E '^[0-9a-f]{64}$' || true
                 echo -e "\n--------------------------"
-                read -p "これらの未使用リソースをすべて削除しますか？ (y/N): " chk
-                if [[ "$chk" =~ ^[yY]([eE][sS])?$ ]]; then
+                if confirm "これらの未使用リソースをすべて削除しますか？"; then
                     echo "削除を開始します..."
                     docker container prune -f
                     docker image prune -f
@@ -202,14 +220,19 @@ case "${1}" in
     file-clean)
         target="${2:-.}"
         [ ! -d "$target" ] && echo "Error: $target not found." && exit 1
-        files=$(find "$target" \( -name "*:Zone.Identifier" -o -name ".DS_Store" \) -type f 2>/dev/null)
+        # 読めないディレクトリがあっても find の非0終了で set -e 終了しない
+        files=$(find "$target" \( -name "*:Zone.Identifier" -o -name ".DS_Store" \) -type f 2>/dev/null || true)
         if [ -z "$files" ]; then
             echo "✅ 削除対象はありません。"
         else
             echo "🗑️  削除対象:"
             echo "$files" | sed 's/^/  /'
-            read -p "実行しますか？ (y/N): " confirm
-            [[ "$confirm" =~ ^[yY]$ ]] && echo "$files" | xargs -d '\n' rm -v && echo "✨ 完了" || echo "中止"
+            if confirm "実行しますか？"; then
+                while IFS= read -r f; do rm -v -- "$f"; done <<< "$files"
+                echo "✨ 完了"
+            else
+                echo "中止"
+            fi
         fi
         ;;
 
@@ -217,21 +240,21 @@ case "${1}" in
     file-crlf)
         target="${2:-.}"
         echo "Searching for files to convert in: $target"
-        # git ls-files の引数としてターゲットを渡す（-C は使わない）
-        files=$(git ls-files -c -o --exclude-standard "$target" | \
-            xargs -I {} grep -Irl $'\r' "{}" 2>/dev/null || true)
+        git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Error: Gitリポジトリ内で実行してください。" >&2; exit 1; }
+        # NUL区切りで渡し、ファイル名の引用符・空白で xargs が異常終了しないようにする
+        files=$(git ls-files -z -c -o --exclude-standard -- "$target" | \
+            xargs -0 -r grep -Il $'\r' 2>/dev/null || true)
 
         if [ -z "$files" ]; then
             echo "No CRLF files found."
-            # exit 0 ではなく return や break (case文の中なので) にするか、そのまま終了させる
-            return 0 2>/dev/null || exit 0
+            exit 0
         fi
         echo "--- Target Files (Git managed & Non-ignored) ---"
         echo "$files"
         echo "------------------------------------------------"
         if confirm "Convert these files to LF?"; then
             # ファイルリストをループして変換を実行
-            echo "$files" | xargs -I {} perl -pi -e 's/\r\n/\n/g' "{}"
+            while IFS= read -r f; do perl -pi -e 's/\r\n/\n/g' "$f"; done <<< "$files"
             echo "Conversion complete."
         else
             echo "Aborted."
@@ -256,6 +279,11 @@ case "${1}" in
                 ./rsync.sh push
                 popd
                 ;;
+
+            *)
+                usage >&2
+                exit 1
+                ;;
         esac
         ;;
 
@@ -274,6 +302,11 @@ case "${1}" in
                 pushd "${BASE_DIR}/editors/Antigravity"
                 ./rsync.sh push
                 popd
+                ;;
+
+            *)
+                usage >&2
+                exit 1
                 ;;
         esac
         ;;
@@ -303,7 +336,15 @@ case "${1}" in
         check req docker     "docker / mysql / wordpress"
         check req python3    "各種Pythonスクリプト"
         check req mise       "ツール管理"
-        check opt ffmpeg     "video-gen / audio-transcribe"
+        check req zip        "git archive-diff"
+        check req perl       "file-crlf"
+        check opt fzy        "enhancd (ディレクトリ選択)"
+        check opt nvim       "エディタ"
+        check opt xclip      "クリップボード連携"
+        check opt git-secrets "コミット時の機密検査"
+        check opt gitleaks   "コミット時の機密検査"
+        check opt shellcheck "シェルスクリプト静的解析"
+        check opt ffmpeg    "video-gen / audio-transcribe"
         check opt ai-cli     "pr-gen / blog-gen / slide-gen"
         check opt claude     "Claude Code"
         check opt mysql      "mysql"
@@ -311,15 +352,73 @@ case "${1}" in
         check opt dig        "netsec conns (ASN/DNSBL判定)"
         check opt ping       "netsec devices/ports (ホスト探索)"
         check opt tcpdump    "netsec dnswin (pcapng 解析)"
+        check opt lsof       "port (Mac一覧・詳細表示)"
         if [ -n "$WSL_DISTRO_NAME" ]; then
             check req wsl.exe "WSL連携"
             check req fstrim  "wsl-compact"
+            check opt netstat.exe "port (Windows側の一覧)"
+            check opt tasklist.exe "port (Windows側のプロセス名)"
+            check opt taskkill.exe "port (Windows側の終了)"
         fi
+
+        echo -e "\nシンボリックリンクをチェックします。"
+        for entry in "${DOTFILE_LINKS[@]}"; do
+            link="${entry%%|*}"; src="${entry#*|}"
+            if link_ok "$link" "$src"; then
+                printf "  [OK]      %s\n" "$link"
+            else
+                printf "  [MISSING] %s (dotfiles/%s へのリンクが無効)\n" "$link" "$src"
+                missing=$((missing + 1))
+            fi
+        done
+
+        echo -e "\nグローバルGitフックをチェックします。"
+        hooks_path="$(git config --global core.hooksPath || true)"
+        hooks_path="${hooks_path/#\~/$HOME}"
+        if [ -z "$hooks_path" ] || [ ! -d "$hooks_path" ]; then
+            printf "  [warn]    core.hooksPath が未設定、またはディレクトリがありません (%s)\n" "${hooks_path:-未設定}"
+        else
+            for hook in "$hooks_path"/*; do
+                [ -f "$hook" ] || continue
+                if [ -x "$hook" ]; then
+                    printf "  [OK]      %s\n" "$(basename "$hook")"
+                else
+                    printf "  [warn]    %s (実行権限なし)\n" "$(basename "$hook")"
+                fi
+            done
+        fi
+
         if [ "$missing" -gt 0 ]; then
             echo -e "\n必須コマンドが ${missing} 個不足しています。"
             exit 1
         fi
         echo -e "\n必須コマンドはすべてそろっています。"
+        ;;
+
+    ## dotfilesの状態を一括表示（未コミット／上流との差／バックアップ同期／リンク）
+    status)
+        echo "=== dotfiles ($(readlink -f "$BASE_DIR")) ==="
+        branch="$(git -C "$BASE_DIR" branch --show-current)"
+        changed="$(git -C "$BASE_DIR" status --short | wc -l)"
+        echo "ブランチ:       ${branch:-(detached)}"
+        echo "未コミット変更: ${changed} 件"
+        if counts="$(git -C "$BASE_DIR" rev-list --left-right --count '@{u}...HEAD' 2>/dev/null)"; then
+            read -r behind ahead <<< "$counts"
+            echo "上流との差:     ahead ${ahead} / behind ${behind}"
+        else
+            echo "上流との差:     上流未設定"
+        fi
+        last_sync_file="$HOME/.cache/dotfiles/last_backup"
+        if [ -f "$last_sync_file" ]; then
+            echo "最終バックアップ: $(date -d "@$(cat "$last_sync_file")" '+%Y-%m-%d %H:%M:%S')"
+        else
+            echo "最終バックアップ: 未同期"
+        fi
+        broken=0
+        for entry in "${DOTFILE_LINKS[@]}"; do
+            link_ok "${entry%%|*}" "${entry#*|}" || { echo "リンク無効:     ${entry%%|*}"; broken=$((broken + 1)); }
+        done
+        echo "リンク:         無効 ${broken} 件 / 全 ${#DOTFILE_LINKS[@]} 件"
         ;;
 
     ## apt・mise・npm・AI CLIを一括更新
@@ -344,7 +443,7 @@ case "${1}" in
 
     ## powershell.exe連携の応急処置（binfmt_misc再登録）
     wsl-interop)
-        echo ':WSLInterop:M::MZ::/init:P' | sudo tee /proc/sys/fs/binfmt_misc/register
+        echo ':WSLInterop:M::MZ::/init:PF' | sudo tee /proc/sys/fs/binfmt_misc/register
         ;;
 
     ## WSLのext4.vhdx肥大化対策（fstrim＋sparse VHD）
@@ -365,6 +464,11 @@ case "${1}" in
         fi
         ;;
 
+    ## 待受ポートを一覧表示（WSL・Windows・Mac。選択して詳細確認／終了）
+    port)
+        "${SCRIPT_DIR}/port-ops.sh" "${@:2}"
+        ;;
+
     #[セキュリティ]
 
     ## 自宅ネットワークの簡易セキュリティ検査（引数なしで対話メニュー）
@@ -380,7 +484,7 @@ case "${1}" in
         ;;
 
     *)
-
-        usage
+        usage >&2
+        exit 1
         ;;
 esac

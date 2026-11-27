@@ -20,11 +20,19 @@ call :CreateDirLink "%USERPROFILE%\.ssh" "%DOTFILES%..\..\.ssh"
 :: --- 重要: .wslconfig はリンクではなく「コピー」を行う ---
 call :CopyWithBackup "%DOTFILES%.wslconfig" "%USERPROFILE%\.wslconfig"
 
+:: --- WezTerm 設定は「コピー」で配置する (WezTerm はホットリロードするため共通ファイルは .config/wezterm/。編集は dotfiles 側で行い再実行で反映) ---
+if not exist "%USERPROFILE%\.config\wezterm" mkdir "%USERPROFILE%\.config\wezterm"
+call :CopyWithBackup "%DOTFILES%..\.config\wezterm\wezterm.lua" "%USERPROFILE%\.config\wezterm\wezterm.lua"
+:: 背景画像 (wezterm.lua が config ディレクトリ直下の background.png を読む。Windows Terminal と同じ画像)
+copy /Y "%DOTFILES%windows-terminal\background.png" "%USERPROFILE%\.config\wezterm\background.png" >nul
+
 :: --- 重要: Windows Terminal settings.json は「コピー」で配置する ---
 :: (シンボリックリンクだと保存時にリンクが壊れるため)
 set WT_DIR=%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState
 if exist "%WT_DIR%" (
     call :CopyWithBackup "%DOTFILES%windows-terminal\settings.json" "%WT_DIR%\settings.json"
+    :: 背景画像 (settings.json から ms-appdata:///local/background.png で参照)
+    copy /Y "%DOTFILES%windows-terminal\background.png" "%WT_DIR%\background.png" >nul
 ) else (
     echo Windows Terminal not found. Skipping settings.json.
 )

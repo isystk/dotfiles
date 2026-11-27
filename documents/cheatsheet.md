@@ -62,7 +62,7 @@
 |               | `y`                     | クリップボードへコピー                                            |
 |               | `R`                     | ツリー更新(Refresh)                                         |
 |               | `?`                     | ヘルプ表示                                                  |
-| **ClaudeCode** | `<leader>ac`            | ClaudeCode パネルの切替                                      |
+| **ClaudeCode** | `<leader>ac`            | ClaudeCode パネルの切替（herdr 内で起動中は herdr の右ペインで起動 / フォーカス。§5 参照） |
 |               | `<leader>af`            | ClaudeCode パネルへフォーカス                                   |
 |               | `<leader>as` (visual)   | 選択範囲を ClaudeCode へ送信                                   |
 |               | `<leader>aa` / `<leader>ad` | 差分を承認(Accept) / 却下(Deny)                              |
@@ -82,6 +82,8 @@
 |               | `<leader>xr`            | 参照一覧                                                   |
 | **検索置換(grug-far)** | `<leader>sr`       | プロジェクト横断の検索/置換パネルを開く                                 |
 | **パンくず(dropbar)** | `<leader>;`         | パンくずをジャンプ選択                                            |
+| **キー候補(which-key)** | `<leader>` 等を押して待つ | 300ms 後に続きのキー候補をポップアップ表示（グループ: a=Claude / f=検索 / l=Laravel / s=置換 / t=ターミナル / x=診断） |
+|               | `<leader>/`             | 現在バッファで有効なキーマップを一覧表示                                   |
 | **ヘルプ**       | `<leader>?`             | このチートシートをフローティングウィンドウで表示                                |
 
 ---
@@ -163,7 +165,7 @@ AI 連携や GitHub CLI のラッパー機能。
 |                  | `voice-gen`         | Markdown から音声を生成（VOICEVOX）                                 |
 |                  | `video-gen`         | PDF と音声から動画を生成                                            |
 |                  | `audio-transcribe`  | 音声ファイルの文字起こし（`file-task.sh`を利用）<br/>例：`run audio-transcribe meets.mp3` |
-| **変換**           | `image-opt`         | 画像を Web 用に最適化（1200px・圧縮・EXIF 削除）。元ファイルを残し同フォルダに `_web` 付きで出力<br/>例：`run image-opt ~/pics/a.jpg ~/pics/`<br/>オプション：`-w` 最大幅（既定1200） `-q` 品質（既定82） `-o` 出力先 |
+| **変換**           | `image-opt`         | 画像を Web 用に最適化（1200px・圧縮・EXIF 削除）。既定は元ファイルを残し同フォルダに `_web` 付きで出力<br/>例：`run image-opt ~/pics/a.jpg ~/pics/`<br/>オプション：`-w` 最大幅（既定1200） `-q` 品質（既定82） `-o` 出力先 `-i/--in-place` 元ファイルを上書き `-f/--format` 保存形式（`keep`/`jpg`/`webp`/`png`、拡張子は保存形式に合わせて補正）<br/>例（サムネイルを上書きJPEG化）：`run image-opt -i -f jpg -w 1200 -q 85 a.png` → `a.jpg` |
 |                  | `web-shot`          | Web ページを画像に変換                                             |
 |                  | `image-to-pdf`      | 画像を PDF に変換                                               |
 | **GitHub**         | `github`            | PR を選択して開く／チェックアウト／マージ／AI レビュー                          |
@@ -193,10 +195,33 @@ AI 連携や GitHub CLI のラッパー機能。
 |                  | `update-all`        | apt・mise・npm グローバル・AI CLI をまとめて更新                            |
 |                  | `wsl-interop`       | powershell.exe 連携が壊れた際の応急処置（binfmt_misc 再登録）               |
 |                  | `wsl-compact`       | WSL の ext4.vhdx 肥大化対策。`fstrim`後、別 PowerShell で`wsl --shutdown`→`--set-sparse true`を実行（WSLが停止する。初回のみ） |
+|                  | `port`              | 待受（LISTEN）ポートの一覧を表示し、選択して操作する。行頭のラベルで環境を判別：`[WSL]` WSL 内 / `[Win]` Windows 側（WSL から `netstat.exe`・`tasklist.exe` 経由）/ `[Mac]` / `[Linux]`<br/>操作：**詳細を見る**（プロセス情報・接続数・開いているソケット・Windows はコマンドライン）、**接続元を見る**（接続中の相手 IP:ポートを件数付きで表示。TCP の行のみ表示）、**終了する**（SIGTERM / Windows は `taskkill`）、**強制終了する**（SIGKILL / `taskkill /F`）。終了系は y/N 確認。操作後は一覧へ戻る<br/>例：`run port`（一覧から選択）、`run port 6006`（ポート直接指定）<br/>注意：Docker 公開ポートは kill せず `docker stop <コンテナ>` を案内。他ユーザー所有のプロセスは、パスワード不要の sudo が使えるときだけ名前を表示（無ければ `-`、操作は詳細のみ）。Windows の保護・管理者プロセスは昇格せず、管理者 PowerShell で実行するコマンドを案内 |
 
 ---
 
-### 5. VSCode拡張機能 (自作)
+### 5. herdr (AI コーディングエージェント用ターミナルワークスペース)
+
+mise でインストール（`.config/mise/config.toml`）。`herdr` はセッション永続型で、各ペインの Claude Code の状態（作業中 / 承認待ち）を検出する。
+
+| 分類            | コマンド                                  | 内容 / 挙動                                                  |
+|---------------|---------------------------------------|----------------------------------------------------------|
+| **起動・状態**    | `herdr`                               | 永続セッションを起動 / アタッチ                                       |
+|               | `herdr status`                        | クライアント / サーバーの稼働状態を表示                                   |
+|               | `herdr server stop`                   | 稼働中のサーバーを停止                                              |
+|               | `herdr server reload-config`          | 稼働中サーバーへ `config.toml` を再読込                              |
+|               | `herdr update`                        | 最新版へ更新                                                   |
+| **設定**        | `herdr config check`                  | `~/.config/herdr/config.toml` を検証して診断表示                  |
+|               | `herdr config reset-keys`             | `config.toml` をバックアップしカスタムキーバインドを削除                      |
+| **ペイン・エージェント** | `herdr pane list` / `split` / `focus` | ペインの一覧 / 分割 / フォーカス                                      |
+|               | `herdr agent list` / `focus`          | エージェントの一覧 / フォーカス                                        |
+|               | `herdr agent start <名前> --kind claude --pane <ID>` | 既存ペインで Claude を起動（シェル準備完了を待つため `pane run` より確実）    |
+| **Neovim 連携** | `<leader>ac`                          | herdr 内（`HERDR_ENV=1`）の nvim から実行すると、herdr の右ペインで Claude を起動し、起動済みならフォーカスのみ。herdr 外では従来の nvim 内ターミナル。claudecode.nvim は IDE 連携（diff 表示・選択範囲送信）のみ担当 |
+|               | `Ctrl+右クリック`                       | herdr 内の nvim で右クリックメニュー（PopUp）を開く。素の右クリックは herdr が消費して nvim に届かないため、`~/.config/herdr/config.toml` の `[ui] right_click_passthrough_modifier = "ctrl"` で Ctrl 付きのみ素通しにしている（変更後は `herdr server reload-config`） |
+| **Claude Code 連携** | `.claude/hooks/herdr-agent-state.sh` | SessionStart フックで herdr へセッションを通知（herdr 管理ファイル。直接編集しない）  |
+
+---
+
+### 6. VSCode拡張機能 (自作)
 
 `editors/VSCode/vscode-extensions/` に同梱しているLaravel向け自作拡張機能。
 

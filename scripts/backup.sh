@@ -60,13 +60,13 @@ case "${1}" in
         mkdir -p "$dest"
 
         if [ -d "$dest" ]; then
-            deletions="$(rsync -a --relative --delete --dry-run "${exclude_args[@]}" "${paths[@]}" "$dest/" | grep -E '^deleting ' || true)"
+            deletions="$(rsync -a --no-specials --relative --delete --dry-run "${exclude_args[@]}" "${paths[@]}" "$dest/" | grep -E '^deleting ' || true)"
             if [ -n "$deletions" ]; then
                 echo "以下のファイルがバックアップ先から削除されます:"
                 echo "$deletions"
                 if ! confirm "削除を実行しますか？"; then
                     echo "削除をスキップし、追加・変更のみ反映します。"
-                    rsync -av --relative "${exclude_args[@]}" "${paths[@]}" "$dest/"
+                    rsync -av --no-specials --relative "${exclude_args[@]}" "${paths[@]}" "$dest/"
                     mkdir -p "$(dirname "$LAST_SYNC_FILE")"
                     date +%s > "$LAST_SYNC_FILE"
                     echo "✅ バックアップが完了しました。"
@@ -74,7 +74,7 @@ case "${1}" in
                 fi
             fi
         fi
-        rsync -av --relative --delete "${exclude_args[@]}" "${paths[@]}" "$dest/"
+        rsync -av --no-specials --relative --delete "${exclude_args[@]}" "${paths[@]}" "$dest/"
 
         mkdir -p "$(dirname "$LAST_SYNC_FILE")"
         date +%s > "$LAST_SYNC_FILE"

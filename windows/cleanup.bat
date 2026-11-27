@@ -7,9 +7,9 @@ echo 既存のシンボリックリンクを削除しています...
 :: 1. ファイルのリンク削除 (シンボリックリンクの場合のみ削除)
 call :RemoveFileLink "%USERPROFILE%\.ideavimrc"
 
-:: .wslconfig / Windows Terminal settings.json は setup.bat が「コピー」配置したもの。
+:: .wslconfig / Windows Terminal settings.json / wezterm.lua は setup.bat が「コピー」配置したもの。
 :: 実設定を失わないよう削除せず、手動での扱いを案内する。
-echo Note: .wslconfig and Windows Terminal settings.json are copies and were NOT deleted.
+echo Note: .wslconfig, Windows Terminal settings.json and wezterm.lua are copies and were NOT deleted.
 echo       Restore from *.bak.* manually if needed.
 
 :: 2. ディレクトリのリンク削除 (リンクの場合のみ)

@@ -32,6 +32,8 @@ Claude Code（司令塔）が作業を分解し、定型・大量・下書き系
 1. https://platform.deepseek.com でAPIキーを取得（要チャージ）。
 2. `~/.setenv.local`（Git管理外）に `export DEEPSEEK_API_KEY=キー` を追記する
    （雛形は `~/dotfiles/.setenv.local.example`。`.zshrc` が `~/.setenv.local` を source する）。キー文字列をチャットに貼らない。
+   モデルも同じファイルで指定できる: `export DEEPSEEK_MODEL=deepseek-v4-pro`（未設定時は `deepseek-flash`）。
+   ただし `run.sh` では haiku 相当とサブエージェントが `deepseek-flash` 固定。`DEEPSEEK_MODEL` はメイン2変数にだけ効く。
    追記後、シェルを再読込し、Claude Code を再起動する（環境変数は起動時に継承されるため）。
 3. 代替: 環境変数を使わない場合は `~/.config/deepseek/api_key`（権限600）にキーのみを保存しても動く。
    環境変数が設定されていればそちらを優先する。

@@ -21,20 +21,29 @@ cd ~/dotfiles
 
 ### 2. 設定ファイルの適用（シンボリックリンク作成）
 
-OSに合わせて以下のスクリプトを実行してください。
+OSに合わせて以下を実行してください。
 
-* **🍎 Mac / 🐧 WSL**
+* **🍎 Mac / 🐧 WSL**（[mise](https://mise.jdx.dev) が必要。リンク定義は `mise.toml`、OS別は `mise.mac.toml` / `mise.wsl.toml`）
 * **適用（インストール）**
 ```bash
 chmod +x install.sh
-./install.sh
+./install.sh   # 内部で `mise -C ~/dotfiles [-E mac|wsl] bootstrap --only dotfiles,task` を実行し、続けて手動タスクを確認付きで呼びます
 
 ```
 
 * **削除（アンインストール）**
 ```bash
 chmod +x uninstall.sh
-./uninstall.sh
+./uninstall.sh   # 内部で `mise ... bootstrap dotfiles unapply` を実行します
+
+```
+
+* **mise を直接使う場合**（`-E` は Mac が `mac`、WSL が `wsl`、それ以外は省略）
+```bash
+mise -C ~/dotfiles -E wsl bootstrap dotfiles status   # 現在の状態（applied / missing / differs）
+mise -C ~/dotfiles -E wsl bootstrap dotfiles diff     # 適用で変わる内容
+mise -C ~/dotfiles -E wsl bootstrap --only dotfiles,task   # リンク配置と雛形コピー・実行権限
+mise -C ~/dotfiles tasks ls                           # 手動タスク一覧（setup:mcp / setup:herdr / setup:wsl-etc / setup:iterm2 / cleanup:caches）
 
 ```
 
@@ -54,7 +63,12 @@ windows\cleanup.bat
 
 ### 補足
 
+* **ツールの導入順（Mac/WSL）**: `install.sh` はリンク配置までで、`[tools]`（node / python / neovim / herdr / rust など）は導入しません。`install.sh` の後に `mise install` を実行してください（`~/.config/mise/config.toml` はリンク配置で初めて有効になります）。herdr の reviewr プラグイン（`mise run setup:herdr`）は herdr と Rust の導入後でないと動きません。
+
 * **Mac/WSL**: `uninstall.sh` はシンボリックリンクの解除と、一時的なキャッシュディレクトリの削除を行います。
+* **既存ファイルとの衝突**: `install.sh` は配置先の実ファイル・別リンクを `.bak.<日時>` へ退避してからリンクします。mise を直接使う場合は衝突で止まるので、手動で退避するか、上書きしてよい場合のみ `--force-dotfiles` を付けてください。
+* **mise が PATH に無い初回**: `install.sh` は `~/.local/bin/mise` などの既定のインストール先も探し、見つからなければ公式スクリプトでのインストールを確認付きで提案します。
+* **`*.local` の雛形**: `.setenv.local` などは `mise run bootstrap` が「無い場合だけ」コピーします（既存は上書きしません）。
 * **Windows**: `cleanup.bat` は `mklink` で作成したリンクの削除と、コピーした `.wslconfig` / Windows Terminal `settings.json` の削除を行います。
 
 ---
@@ -64,7 +78,7 @@ windows\cleanup.bat
 ### 🍎 Mac
 
 ```bash
-brew install mise fzy ccat git-lfs ripgrep
+brew install mise git-lfs   # 以降の Homebrew パッケージ（fzy / ccat / macism / Karabiner-Elements / Maccy / iTerm2）は install.sh が mise.mac.toml から導入します
 
 ```
 
@@ -115,13 +129,12 @@ sudo apt update && sudo apt install -y zsh fzy git-lfs ripgrep
 ├── .gitignore / .gitignore_global # Git除外設定
 ├── .ideavimrc            # JetBrains IDE用Vim設定 (Mac/Windows側)
 ├── .setenv.mac / .wsl / .linux / .local.example # OS固有の環境変数
-├── .vimrc                # Vim設定
 ├── .zshrc                # Zsh設定
 ├── editors/              # 開発エディタ設定（各ディレクトリのrsync.sh push/pullで手動反映）
 │   ├── Antigravity/      # Antigravity設定
 │   ├── PhpStorm/         # PhpStorm設定
 │   └── VSCode/           # VSCode設定
-├── mac/                  # macOS固有設定 (install.sh実行時のみ反映)
+├── mac/                  # macOS固有設定 (mise.mac.toml / install.sh 実行時のみ反映)
 │   ├── iterm2/           # iTerm2設定 (com.googlecode.iterm2.plist)
 │   └── karabiner/        # Karabiner-Elements設定
 ├── install.sh            # Unix系用セットアップ

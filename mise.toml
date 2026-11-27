@@ -1,0 +1,125 @@
+# dotfiles の配置定義。OS 別は mise.<mac|wsl>.toml（-E で読み込む）
+
+min_version = { hard = "2026.9.1" }
+
+[settings]
+dotfiles.default_mode = "symlink"
+
+[dotfiles]
+# Shell / Env
+"~/.bash_profile" = { source = ".bash_profile" }
+"~/.bashrc"       = { source = ".bashrc" }
+"~/.zshrc"        = { source = ".zshrc" }
+"~/.setenv.wsl"   = { source = ".setenv.wsl" }
+"~/.setenv.mac"   = { source = ".setenv.mac" }
+"~/.setenv.linux" = { source = ".setenv.linux" }
+
+# ai-cli
+"~/.local/bin/ai-cli"      = { source = "scripts/ai-cli.py" }
+"~/.local/bin/gemini-cli"  = { source = "scripts/gemini-cli.py" }
+"~/.local/bin/chatgpt-cli" = { source = "scripts/chatgpt-cli.py" }
+"~/.local/bin/claude-cli"  = { source = "scripts/claude-cli.py" }
+
+# Git / Config
+"~/.gitconfig"        = { source = ".gitconfig" }
+"~/.config/ai-cli"    = { source = ".config/ai-cli" }
+"~/.config/git"       = { source = ".config/git" }
+"~/.config/gh"        = { source = ".config/gh" }
+"~/.config/nvim"      = { source = ".config/nvim" }
+"~/.config/mise"      = { source = ".config/mise" }
+# herdr はディレクトリに実行時ファイルが入るため config.toml のみ
+"~/.config/herdr/config.toml" = { source = ".config/herdr/config.toml" }
+"~/.config/herdr/plugins/config/persiyanov.reviewr/config.toml" = { source = ".config/herdr/plugins/persiyanov.reviewr/config.toml" }
+
+# Claude
+"~/.claude/CLAUDE.md"      = { source = ".claude/CLAUDE.md" }
+"~/.claude/settings.json"  = { source = ".claude/settings.json" }
+"~/.claude/hooks"          = { source = ".claude/hooks" }
+"~/.claude/statusline.sh"  = { source = ".claude/statusline.sh" }
+"~/.claude/agents"         = { source = ".claude/agents" }
+"~/.claude/skills"         = { source = ".claude/skills" }
+# Serena
+"~/.serena/contexts/claude-code-multi.yml" = { source = ".claude/serena/claude-code-multi.yml" }
+
+# Gemini / Antigravity
+"~/.gemini/GEMINI.md"       = { source = ".gemini/GEMINI.md" }
+"~/.gemini/settings.json"   = { source = ".gemini/settings.json" }
+# .gemini/skills は ~/.claude/skills 経由のリンクで初回は存在しないため、実体を指す
+"~/.gemini/skills"          = { source = ".claude/skills" }
+"~/.gemini/antigravity/mcp_config.json" = { source = ".claude/mcp_config.json" }
+
+# Codex
+"~/.codex/AGENTS.md"  = { source = ".codex/AGENTS.md" }
+"~/.codexignore"      = { source = ".codex/.codexignore" }
+"~/.codex/skills"     = { source = ".codex/skills" }
+
+# `mise bootstrap` が毎回実行するため、確認不要で冪等な処理のみ
+[tasks.bootstrap]
+description = "個人設定の雛形コピー（既存は上書きしない）と実行権限の付与"
+dir = "{{config_root}}"
+run = '''
+for pair in ".setenv.local.example:.setenv.local" ".gitconfig.local.example:.gitconfig.local" ".backup-files.example:.backup-files"; do
+  src="${pair%%:*}"; dst="$HOME/${pair##*:}"
+  if [ ! -e "$dst" ]; then cp "$src" "$dst" && echo "Created: $dst"; fi
+done
+find . -name "*.sh" -exec chmod a+x {} +
+chmod +x scripts/ai-cli.py scripts/gemini-cli.py scripts/chatgpt-cli.py scripts/claude-cli.py
+chmod +x ~/.config/git/hooks/* 2>/dev/null || true
+# mise の npm バックエンドは install スクリプトを実行しないため、tree-sitter CLI の実行バイナリが無いままになる
+# （無いと nvim が起動のたびにパーサーを再取得しようとする）。導入済みで実体が無い時だけ取得する
+ts_root="$(mise where npm:tree-sitter-cli 2>/dev/null || true)"
+if [ -n "$ts_root" ]; then
+  ts_pkg="$(find "$ts_root" -type d -path '*/node_modules/tree-sitter-cli' | head -n 1)"
+  if [ -n "$ts_pkg" ] && [ ! -x "$ts_pkg/tree-sitter" ]; then
+    echo "Fetching tree-sitter CLI binary..."
+    (cd "$ts_pkg" && node install.js)
+  fi
+fi
+'''
+
+[tasks."setup:mcp"]
+description = "Claude の MCP サーバーを .claude/mcp_config.json から登録（登録済みはスキップ）"
+dir = "{{config_root}}"
+run = "bash scripts/setup-mcp.sh"
+
+[tasks."setup:herdr"]
+description = "herdr の reviewr プラグインを導入（Rust が必要。導入済みはスキップ）"
+run = '''
+command -v herdr >/dev/null 2>&1 || { echo "herdr が見つかりません。先に mise install を実行してください"; exit 1; }
+if herdr plugin list 2>/dev/null | grep -q "persiyanov.reviewr"; then
+  echo "herdr plugin already installed: persiyanov.reviewr"
+else
+  herdr plugin install persiyanov/herdr-reviewr
+fi
+'''
+
+[tasks."setup:wsl-etc"]
+description = "WSL のみ: /etc/{wsl.conf,resolv.conf,fstab} へ sudo でコピー（差分表示と確認あり）"
+dir = "{{config_root}}"
+# 既定の sh（dash）では source が使えない
+shell = "bash -c"
+run = '''
+source scripts/utils.sh
+[ -n "$IS_WSL" ] || { echo "WSL ではないためスキップ"; exit 0; }
+for f in wsl.conf resolv.conf fstab; do
+  if [ -f ".config/wsl/$f" ]; then copy_with_prompt "$PWD/.config/wsl/$f" "/etc/$f" sudo; fi
+done
+'''
+
+[tasks."setup:iterm2"]
+description = "macOS のみ: iTerm2 の設定フォルダを dotfiles 配下へ向ける"
+dir = "{{config_root}}"
+run = '''
+[ "$(uname)" = "Darwin" ] || { echo "macOS ではないためスキップ"; exit 0; }
+defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$PWD/mac/iterm2"
+defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
+echo "iTerm2: Loaded preferences from $PWD/mac/iterm2 (restart iTerm2 to apply)"
+'''
+
+[tasks."cleanup:caches"]
+description = "zinit / .vim / nvim のデータを削除（元に戻せない。uninstall.sh から確認後に呼ぶ）"
+run = '''
+for d in "$HOME/.local/share/zinit" "$HOME/.vim" "$HOME/.local/share/nvim"; do
+  if [ -d "$d" ]; then echo "Removing directory: $d"; rm -rf "$d"; fi
+done
+'''

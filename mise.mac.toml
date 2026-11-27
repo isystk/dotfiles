@@ -1,0 +1,28 @@
+# macOS 専用（-E mac）
+
+# Homebrew パッケージ（`mise bootstrap packages apply`。導入済みはスキップ。install.sh から確認付きで実行）
+[bootstrap.brew.taps]
+# Nvim の IME 自動切替に使う macism の tap
+"laishulu/homebrew" = "https://github.com/laishulu/homebrew-homebrew.git"
+
+[bootstrap.packages]
+# 必須: .gitconfig の core.hooksPath が git-lfs を要求する（無いと git clone が失敗する）
+"brew:git-lfs" = "latest"
+"brew:fzy" = "latest"
+"brew:ccat" = "latest"
+# Nvim の IME 自動切替
+"brew:laishulu/homebrew/macism" = "latest"
+# キー操作
+"brew-cask:karabiner-elements" = "latest"
+# 履歴からペーストするツール
+"brew-cask:maccy" = "latest"
+# Mac 標準ターミナルの代替
+"brew-cask:iterm2" = "latest"
+
+[dotfiles]
+"~/.ideavimrc" = { source = ".ideavimrc" }
+# Karabiner-Elements
+"~/.config/karabiner/karabiner.json" = { source = "mac/karabiner/karabiner.json" }
+"~/.config/karabiner/assets/complex_modifications" = { source = "mac/karabiner/assets/complex_modifications" }
+# WezTerm（Windows と共通ファイル。OS 差分は wezterm.lua 内で分岐）
+"~/.config/wezterm/wezterm.lua" = { source = ".config/wezterm/wezterm.lua" }
