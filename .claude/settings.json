@@ -4,8 +4,10 @@
   "env": {
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80",
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "500000",
+    "CLAUDE_COST_LIMIT_TOKENS": "30000000",
     "CLAUDE_CODE_PLUGIN_DIRS": "~/dotfiles/.claude/mods/session-hub:~/dotfiles/.claude/mods/effort-router"
   },
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
       "Bash(ls *)",
@@ -110,7 +112,7 @@
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Read(**/secrets/**)",
-      "Read(~/.setenv*)",
+      "Read(~/.setenv.local)",
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",
       "Read(~/.config/gh/**)",
@@ -122,7 +124,8 @@
       "Bash(grep * *.env*)",
       "Bash(source *.env*)",
       "Bash(. *.env*)",
-      "Bash(cat *setenv*)",
+      "Bash(cat *setenv.local)",
+      "Bash(cat *setenv.local *)",
       "Bash(cat ~/.config/deepseek/*)",
       "Bash(printenv *)",
       "Bash(env |*)",
@@ -135,7 +138,7 @@
       "Read(**/*.pfx)",
       "Read(**/id_rsa*)",
       "Read(**/id_ed25519*)",
-      "Read(**/.setenv*)",
+      "Read(**/.setenv.local)",
       "Read(**/*.key)",
       "Bash(cat **.pem*)",
       "Bash(cat **.p12*)",
@@ -145,49 +148,57 @@
       "Bash(head **.pfx*)",
       "Bash(head **id_rsa*)",
       "Bash(head **id_ed25519*)",
-      "Bash(head **setenv*)",
+      "Bash(head **setenv.local)",
+      "Bash(head **setenv.local *)",
       "Bash(tail **.pem*)",
       "Bash(tail **.p12*)",
       "Bash(tail **.pfx*)",
       "Bash(tail **id_rsa*)",
       "Bash(tail **id_ed25519*)",
-      "Bash(tail **setenv*)",
+      "Bash(tail **setenv.local)",
+      "Bash(tail **setenv.local *)",
       "Bash(less **.pem*)",
       "Bash(less **.p12*)",
       "Bash(less **.pfx*)",
       "Bash(less **id_rsa*)",
       "Bash(less **id_ed25519*)",
-      "Bash(less **setenv*)",
+      "Bash(less **setenv.local)",
+      "Bash(less **setenv.local *)",
       "Bash(more **.pem*)",
       "Bash(more **.p12*)",
       "Bash(more **.pfx*)",
       "Bash(more **id_rsa*)",
       "Bash(more **id_ed25519*)",
-      "Bash(more **setenv*)",
+      "Bash(more **setenv.local)",
+      "Bash(more **setenv.local *)",
       "Bash(grep **.pem*)",
       "Bash(grep **.p12*)",
       "Bash(grep **.pfx*)",
       "Bash(grep **id_rsa*)",
       "Bash(grep **id_ed25519*)",
-      "Bash(grep **setenv*)",
+      "Bash(grep **setenv.local)",
+      "Bash(grep **setenv.local *)",
       "Bash(sed **.pem*)",
       "Bash(sed **.p12*)",
       "Bash(sed **.pfx*)",
       "Bash(sed **id_rsa*)",
       "Bash(sed **id_ed25519*)",
-      "Bash(sed **setenv*)",
+      "Bash(sed **setenv.local)",
+      "Bash(sed **setenv.local *)",
       "Bash(awk **.pem*)",
       "Bash(awk **.p12*)",
       "Bash(awk **.pfx*)",
       "Bash(awk **id_rsa*)",
       "Bash(awk **id_ed25519*)",
-      "Bash(awk **setenv*)",
+      "Bash(awk **setenv.local)",
+      "Bash(awk **setenv.local *)",
       "Bash(base64 **.pem*)",
       "Bash(base64 **.p12*)",
       "Bash(base64 **.pfx*)",
       "Bash(base64 **id_rsa*)",
       "Bash(base64 **id_ed25519*)",
-      "Bash(base64 **setenv*)"
+      "Bash(base64 **setenv.local)",
+      "Bash(base64 **setenv.local *)"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
@@ -202,11 +213,26 @@
             "type": "command",
             "command": "bash ~/.claude/hooks/context-check.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/tts-state.sh",
+            "timeout": 5
           }
         ]
       }
     ],
     "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/cost-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
       {
         "matcher": "Bash",
         "hooks": [
@@ -223,6 +249,16 @@
           {
             "type": "command",
             "command": "bash ~/.claude/hooks/takeover.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "^(startup|resume|clear|compact|fork)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/herdr-agent-state.sh session",
             "timeout": 10
           }
         ]
@@ -276,7 +312,8 @@
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
-    "mode": "hold"
+    "mode": "hold",
+    "autoSubmit": true
   },
   "theme": "dark",
   "preferredNotifChannel": "terminal_bell",

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  マウスの戻る/進むボタン(XButton1/XButton2)を、Windows Terminal前面時のみ Ctrl+Left / Ctrl+Right に置き換える常駐スクリプト。
+  マウスの戻る/進むボタン(XButton1/XButton2)を、Windows Terminal / WezTerm前面時のみ Ctrl+Left / Ctrl+Right に置き換える常駐スクリプト。
 
 .DESCRIPTION
   WSL上のNeovimでは <C-Left> / <C-Right> をジャンプリストの戻る/進む(<C-o> / <C-i>)に
@@ -23,7 +23,7 @@
 #>
 
 # 対象プロセス名(拡張子なし)。他のターミナルでも使う場合はここへ追加する。
-$TargetProcessNames = @("WindowsTerminal")
+$TargetProcessNames = @("WindowsTerminal", "wezterm-gui")
 
 # 二重起動防止
 $createdNew = $false

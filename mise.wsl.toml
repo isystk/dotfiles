@@ -1,0 +1,1 @@
+# WSL 専用（-E wsl）。/etc へのコピーは `mise run setup:wsl-etc`

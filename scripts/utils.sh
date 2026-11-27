@@ -153,3 +153,66 @@ zipdiff_all() {
 
     rm -rf "$dir1" "$dir2"
 }
+
+# ファイルコピー関数 (ターゲットが存在しない場合のみコピー)
+# $1: ソース (コピー元ファイル)
+# $2: ターゲット (作成するファイル)
+# $3: (任意) "sudo" を渡すと /etc 等の権限が必要な場所へ sudo でコピーする
+copy_with_prompt() {
+    local source="$1"
+    local target="$2"
+    local use_sudo="${3:-}"
+    local sudo_cmd=""
+    [ "$use_sudo" = "sudo" ] && sudo_cmd="sudo"
+
+    if [ ! -e "$source" ]; then
+        echo "Skip copy: Source $source does not exist."
+        return
+    fi
+
+    if [ -e "$target" ]; then
+        # 上書き前に差分を表示する (/etc/fstab 等の誤上書き防止)
+        if [ -f "$source" ] && [ -f "$target" ]; then
+            diff -u "$target" "$source" || true
+        fi
+        # 確認が必要なのは /etc 等の sudo コピーと個人設定 (*.local, .backup-files) のみ。
+        # それ以外は退避して自動上書きする。
+        local need_confirm=""
+        case "$(basename "$target")" in
+            *.local|.backup-files) need_confirm=1 ;;
+        esac
+        [ -n "$sudo_cmd" ] && need_confirm=1
+
+        if [ -n "$need_confirm" ]; then
+            echo -n "Notice: $target already exists. Overwrite? (y/N): "
+            read -r ans
+            case "$ans" in
+                [yY][eE][sS]|[yY]) ;;
+                *)
+                    echo "Skipping copy..."
+                    return
+                    ;;
+            esac
+        fi
+        local backup="$target.bak.$(date +%Y%m%d%H%M%S)"
+        echo "Backing up existing file to $backup..."
+        $sudo_cmd cp -R "$target" "$backup"
+    fi
+
+    # コピー実行セクション (既存ファイルは cp が上書きするため rm は行わない)
+    echo "Copying: $source to $target"
+    $sudo_cmd mkdir -p "$(dirname "$target")"
+    $sudo_cmd cp -R "$source" "$target" # ディレクトリごとコピーできるよう -R を推奨
+}
+
+# mise を探して MISE_BIN に設定する（初回は PATH に無いため既定の導入先も探す）
+resolve_mise() {
+    MISE_BIN="$(command -v mise 2>/dev/null || true)"
+    if [ -z "$MISE_BIN" ]; then
+        local c
+        for c in "$HOME/.local/bin/mise" /opt/homebrew/bin/mise /usr/local/bin/mise; do
+            if [ -x "$c" ]; then MISE_BIN="$c"; break; fi
+        done
+    fi
+    [ -n "$MISE_BIN" ]
+}

@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # Script Name:  Dotfiles Cleanup Script
-# Description:  ホームディレクトリ内の設定ファイル（シンボリックリンク）を解除し、
+# Description:  mise が配置した dotfiles のシンボリックリンクを解除し、
 #               特定のキャッシュや設定ディレクトリを完全に削除します。
 #               環境の再構築や初期化を行う際に使用します。
 #
@@ -27,94 +27,38 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/scripts/utils.sh"
 
-# シンボリックリンクを安全に解除する関数
-safe_unlink() {
-    local target="$1"
-    # シンボリックリンクが存在する場合のみ実行
-    if [ -L "$target" ]; then
-        echo "Unlinking: $target"
-        unlink "$target"
-    # リンクではなく実ファイルが存在する場合の警告
-    elif [ -e "$target" ]; then
-        echo "Notice: $target is a real file/dir, not a symlink. Skipping..."
-    fi
-}
+if ! resolve_mise; then
+    echo "mise が見つかりません。リンク解除には mise が必要です。" >&2
+    exit 1
+fi
+export PATH="$(dirname "$MISE_BIN"):$PATH"
+export MISE_TASK_RUN_AUTO_INSTALL=false
 
-# Shell / Env
-safe_unlink "$HOME/.bash_profile"
-safe_unlink "$HOME/.bashrc"
-safe_unlink "$HOME/.zshrc"
-safe_unlink "$HOME/.setenv.wsl"
-safe_unlink "$HOME/.setenv.mac"
-safe_unlink "$HOME/.setenv.linux"
+mise_env=""
+[ -n "$IS_MAC" ] && mise_env="mac"
+[ -n "$IS_WSL" ] && mise_env="wsl"
+mise_cmd=(mise -C "$SCRIPT_DIR")
+[ -n "$mise_env" ] && mise_cmd+=(-E "$mise_env")
 
-# Git / Vim / Config
-safe_unlink "$HOME/.gitconfig"
-safe_unlink "$HOME/.vimrc"
-safe_unlink "$HOME/.local/bin/ai-cli"
-safe_unlink "$HOME/.config/ai-cli"
-safe_unlink "$HOME/.local/bin/gemini-cli"
-safe_unlink "$HOME/.local/bin/chatgpt-cli"
-safe_unlink "$HOME/.local/bin/claude-cli"
-safe_unlink "$HOME/.config/git"
-safe_unlink "$HOME/.config/gh"
-safe_unlink "$HOME/.config/nvim"
-safe_unlink "$HOME/.config/mise"
+for f in mise.toml mise.mac.toml mise.wsl.toml; do
+    [ -f "$SCRIPT_DIR/$f" ] && mise trust "$SCRIPT_DIR/$f"
+done
 
-# Claude
-safe_unlink "$HOME/.claude/CLAUDE.md"
-safe_unlink "$HOME/.claude/settings.json"
-safe_unlink "$HOME/.claude/hooks"
-safe_unlink "$HOME/.claude/statusline.sh"
-safe_unlink "$HOME/.claude/agents"
-safe_unlink "$HOME/.claude/skills"
-safe_unlink "$HOME/.serena/contexts/claude-code-multi.yml"
-
-# Gemini / Antigravity
-safe_unlink "$HOME/.gemini/GEMINI.md"
-safe_unlink "$HOME/.gemini/settings.json"
-safe_unlink "$HOME/.gemini/skills"
-safe_unlink "$HOME/.gemini/antigravity/mcp_config.json"
-
-# Codex
-safe_unlink "$HOME/.codex/AGENTS.md"
-safe_unlink "$HOME/.codex/config.toml"
-safe_unlink "$HOME/.codexignore"
-safe_unlink "$HOME/.codex/skills"
-
-if [ -n "$IS_MAC" ]; then
-    # macOS固有の設定
-    safe_unlink "$HOME/.ideavimrc"
-    safe_unlink "$HOME/.config/karabiner/karabiner.json"
-    safe_unlink "$HOME/.config/karabiner/assets/complex_modifications"
-
-    # iTerm2: symlinkではなくdefaults writeで登録しているためsafe_unlink非対応
-    if defaults read com.googlecode.iterm2 PrefsCustomFolder &>/dev/null; then
-        defaults delete com.googlecode.iterm2 PrefsCustomFolder
-        defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
-        echo "iTerm2: Reverted to local preferences (restart iTerm2 to apply)"
-    fi
+# mise.toml の管理外
+if [ -L "$HOME/.vimrc" ]; then
+    echo "Unlinking: $HOME/.vimrc"
+    unlink "$HOME/.vimrc"
 fi
 
-#if [ -n "$IS_WSL" ]; then
-#    # WSL固有の設定
-#    echo "Cleaning up WSL system links..."
-#    [ -f "/etc/wsl.conf" ] && sudo rm -f "/etc/wsl.conf"
-#    [ -f "/etc/resolv.conf" ] && sudo rm -f "/etc/resolv.conf"
-#fi
+if [ -n "$IS_MAC" ] && defaults read com.googlecode.iterm2 PrefsCustomFolder &>/dev/null; then
+    defaults delete com.googlecode.iterm2 PrefsCustomFolder
+    defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
+    echo "iTerm2: Reverted to local preferences (restart iTerm2 to apply)"
+fi
 
-# キャッシュやディレクトリの削除
-echo "Cleaning up directories..."
-dirs_to_remove=(
-    "$HOME/.local/share/zinit"
-    "$HOME/.vim"
-    "$HOME/.local/share/nvim"
-)
-for d in "${dirs_to_remove[@]}"; do
-    if [ -d "$d" ]; then
-        echo "Removing directory: $d"
-        rm -rf "$d"
-    fi
-done
+# ~/.config/mise のリンクが消える前に実行する
+"${mise_cmd[@]}" run cleanup:caches
+
+"${mise_cmd[@]}" bootstrap dotfiles unapply --yes
 
 echo "✅ Cleanup complete!"

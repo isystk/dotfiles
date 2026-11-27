@@ -2,22 +2,10 @@
 # WSL固有の環境設定
 #-------------------------
 
-# Dockerサービスの有効化
-if ! systemctl is-active --quiet docker; then
-    echo "Starting Docker service..."
-    sudo systemctl start docker
-fi
-
-# Neovim（AppImage版）をviに設定
-#export _EDITOR_PATH="$HOME/squashfs-root/AppRun"
+# Neovimをviに設定
 export _EDITOR_PATH='nvim'
-# レガシーvimを使いたい場合は以下を有効化
-#export _EDITOR_PATH='vim'
 
-# WSLでVPN繋いだ時だけSSHできなくなる対策
-sudo ip link set eth0 mtu 1200
-
-# Dockerr Windowsの接続に失敗する時に実行する
+# Docker Windowsの接続に失敗する時に実行するコマンド
 fix_wsl2_interop() {
     for i in $(pstree -np -s $$ | grep -o -E '[0-9]+'); do
         if [[ -e "/run/WSL/${i}_interop" ]]; then
@@ -26,20 +14,10 @@ fix_wsl2_interop() {
     done
 }
 
-# checks to see if we are in a windows or linux dir
-function isWinDir {
-  case $PWD/ in
-    /mnt/*) return $(true);;
-    /c/*) return $(true);;
-    *) return $(false);;
-  esac
-}
-# wrap the git command to either run windows git or linux
+# Windowsディレクトリなら git.exe、それ以外はLinuxのgitを実行
 function git {
-  if isWinDir
-  then
-    git.exe "$@"
-  else
-    /usr/bin/git "$@"
-  fi
+  case $PWD/ in
+    /mnt/*|/c/*) git.exe "$@";;
+    *) /usr/bin/git "$@";;
+  esac
 }

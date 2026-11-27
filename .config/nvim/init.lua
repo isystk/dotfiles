@@ -17,11 +17,12 @@ Neovim設定
 - <C-r>                    置換 (ノーマル: バッファ全体 / ビジュアル: 選択範囲)
 - <leader>sr               検索/置換 (grug-far、プロジェクト横断)
 - <leader>;                パンくずをジャンプ選択 (dropbar)
+- <leader>/                バッファのキーマップ一覧 (which-key。<leader>等の押下後は自動で候補表示)
 - <leader>fg               全文検索
 - <leader>fb               バッファ一覧
 - <leader>tc               ターミナル切替
 - <leader>ts (visual)      選択範囲をターミナルへ送信
-- <leader>ac               ClaudeCode切替
+- <leader>ac               ClaudeCode切替 (herdr内で起動時: herdrの右ペインで起動/フォーカス)
 - <leader>g / ,st          LazyGit起動
 - <leader>G                LazyGit起動 (現在ファイルの履歴に絞り込み)
 - <S-Tab>                  ウィンドウ移動
@@ -135,7 +136,10 @@ end
 -- 現在ブランチ・リポジトリルートからの相対パスを組み立ててOSデフォルトブラウザで開く。
 -- line指定時(ファイルのみ想定)は該当行にアンカーする。ディレクトリはtree、ファイルはblob表示
 local function open_github(path, line)
+  -- git rev-parse --show-toplevel は実体パスを返すため、symlink経由で開いたファイルでも
+  -- 相対パスがずれないよう先に実体パスへ解決する
   local abs_path = vim.fn.fnamemodify(path, ':p')
+  abs_path = vim.uv.fs_realpath(abs_path) or abs_path
   if abs_path == '' or vim.fn.filereadable(abs_path) == 0 and vim.fn.isdirectory(abs_path) == 0 then
     vim.notify('Open Github: 対象パスがありません', vim.log.levels.WARN)
     return
@@ -277,6 +281,73 @@ vim.api.nvim_create_autocmd('CursorMoved', {
       else
         vim.cmd('stopinsert')
       end
+    end
+  end,
+})
+
+-- セッション自動保存/復元(herdr server stop等でnvimが強制終了されても状態を戻すため)。
+-- 引数なし起動のときだけ保存・復元する(`nvim <file>`で他ファイルの状態が上書きされないように)。
+-- nofile/terminal/neo-tree等のウィンドウはmksessionが自動で除外するため、ファイルの
+-- バッファ・分割・カーソル位置のみ復元される。g:panels=1時はパネル構成を再展開するため
+-- ファイルだけ(.last)復元する。強制終了でVimLeavePreが走らなくても失われないようCursorHold等でも保存する
+local session_enabled = vim.fn.argc() == 0
+local session_dir = vim.fn.stdpath('state') .. '/sessions'
+local session_key = vim.fn.getcwd():gsub('[/\\:]', '%%')
+local session_file = session_dir .. '/' .. session_key .. '.vim'
+local last_file_state = session_dir .. '/' .. session_key .. '.last'
+vim.opt.sessionoptions = 'buffers,curdir,tabpages,winsize,folds'
+
+local function save_session()
+  if not session_enabled then
+    return
+  end
+  local name = vim.api.nvim_buf_get_name(0)
+  if vim.bo.buftype ~= '' or name == '' or vim.fn.filereadable(name) == 0 or name:find('/.git/', 1, true) then
+    return -- ターミナル・ツリー等の特殊バッファ上では保存しない
+  end
+  vim.fn.mkdir(session_dir, 'p')
+  pcall(vim.fn.writefile, { name }, last_file_state)
+  if vim.g.panels ~= 1 then
+    pcall(vim.cmd, 'silent! mksession! ' .. vim.fn.fnameescape(session_file))
+  end
+end
+
+vim.api.nvim_create_autocmd({ 'VimLeavePre', 'CursorHold', 'FocusLost', 'BufWritePost' }, {
+  callback = save_session,
+})
+
+-- 前回開いていたファイル。.lastを優先し、無ければshadaのoldfiles(カレントディレクトリ配下)
+local function last_opened_file()
+  if vim.fn.filereadable(last_file_state) == 1 then
+    local f = vim.fn.readfile(last_file_state)[1]
+    if f and vim.fn.filereadable(f) == 1 then
+      return f
+    end
+  end
+  local cwd_prefix = vim.fn.getcwd() .. '/'
+  for _, f in ipairs(vim.v.oldfiles) do
+    local abs = vim.fn.fnamemodify(f, ':p')
+    if abs:sub(1, #cwd_prefix) == cwd_prefix and vim.fn.filereadable(abs) == 1 and not abs:find('/.git/', 1, true) then
+      return abs
+    end
+  end
+  return nil
+end
+_G.__last_opened_file = last_opened_file
+
+vim.api.nvim_create_autocmd('VimEnter', {
+  nested = true,
+  callback = function()
+    if vim.g.panels == 1 or not session_enabled or vim.api.nvim_buf_get_name(0) ~= '' then
+      return
+    end
+    if vim.fn.filereadable(session_file) == 1 and pcall(vim.cmd, 'silent source ' .. vim.fn.fnameescape(session_file)) then
+      return
+    end
+    local f = last_opened_file()
+    if f then
+      vim.cmd('edit ' .. vim.fn.fnameescape(f))
+      pcall(vim.cmd, 'silent! normal! g`"')
     end
   end,
 })
@@ -453,6 +524,89 @@ local function telescope_fuzzy_find_with_selection()
   require('telescope.builtin').current_buffer_fuzzy_find({ default_text = selected })
 end
 
+-- herdr連携: herdr内(HERDR_ENV=1)で起動した場合のみ有効。herdr外の挙動は変わらない。
+-- ClaudeCodeはnvim内ターミナルではなくherdrの右ペインで動かし(herdrが作業中/承認待ちを検出)、
+-- claudecode.nvimはIDE連携(WebSocket: diff表示・選択範囲送信)のみ担当する。
+-- external providerのjobは即時終了すると無効扱いになり、トグルのたびにopen()が呼ばれる。
+-- そのため生存判定(herdr pane get / agent get)をここで行い、生きていれば再分割せずフォーカスする。
+-- Claudeの起動は`herdr pane run`ではなく`herdr agent start`を使う。pane runは新ペインのシェル
+-- 初期化完了前に入力が届くと入力が消える(実機で確認)が、agent startはシェルの準備完了を待つ
+local herdr = {
+  enabled = vim.env.HERDR_ENV == '1' and vim.fn.executable('herdr') == 1,
+  pane_id = nil, -- 起動したClaudeペインのID(例: w1:p2)
+  agent_name = nil, -- herdr上のエージェント名(例: claude_w1p2)
+}
+
+local function herdr_ok(args)
+  vim.fn.system(vim.list_extend({ 'herdr' }, args))
+  return vim.v.shell_error == 0
+end
+
+-- herdrのセッション復元などnvim管理外で既に動いているClaudeを、同一workspace・同一cwdから探す。
+-- pane_id未記録のままだと「未起動」と誤判定され、<leader>as等のFocusで別Claudeが重複起動する
+local function herdr_find_existing_claude()
+  local out = vim.fn.system({ 'herdr', 'agent', 'list' })
+  local ok, json = pcall(vim.json.decode, out)
+  if vim.v.shell_error ~= 0 or not ok or type(json) ~= 'table' or not json.result then
+    return nil
+  end
+  for _, agent in ipairs(json.result.agents or {}) do
+    if agent.agent == 'claude' and agent.workspace_id == vim.env.HERDR_WORKSPACE_ID and agent.cwd == vim.fn.getcwd() then
+      return agent.pane_id
+    end
+  end
+end
+
+-- claudecode.nvimのexternal_terminal_cmd。返したコマンドがjobとして実行される
+function herdr.claude_terminal_cmd(cmd, env)
+  if not herdr.pane_id then
+    local existing = herdr_find_existing_claude()
+    if existing then
+      herdr.pane_id = existing
+      herdr.agent_name = existing -- agent focus/getはpane_idもtargetに取れる
+    end
+  end
+  local pane_id = herdr.pane_id
+  if pane_id and herdr_ok({ 'pane', 'get', pane_id }) then
+    if herdr_ok({ 'agent', 'get', herdr.agent_name }) then
+      return { 'herdr', 'agent', 'focus', herdr.agent_name } -- 起動済み: フォーカスのみ
+    end
+  else
+    -- 新ペインのプロセスへIDE接続用環境変数(CLAUDE_CODE_SSE_PORT等)を渡すため--envで明示する
+    -- (jobstartのenvは、herdrサーバーが起動するペインには届かない)
+    local split = { 'herdr', 'pane', 'split', '--current', '--direction', 'right', '--focus', '--cwd', vim.fn.getcwd() }
+    for key, value in pairs(env or {}) do
+      vim.list_extend(split, { '--env', key .. '=' .. value })
+    end
+    local out = vim.fn.system(split)
+    local ok, json = pcall(vim.json.decode, out)
+    pane_id = ok and json and json.result and json.result.pane and json.result.pane.pane_id
+    if vim.v.shell_error ~= 0 or not pane_id then
+      vim.notify('herdr pane split失敗: ' .. vim.trim(out), vim.log.levels.ERROR)
+      return nil
+    end
+    herdr.pane_id = pane_id
+    herdr.agent_name = 'claude_' .. pane_id:gsub('[^%w]', ''):lower() -- 名前規則: [a-z][a-z0-9_-]{0,31}
+  end
+  -- ペインは存在するがClaudeが未起動(新規 or Claude終了後)。cmdは'claude <引数...>'形式
+  local args = vim.split(cmd, '%s+', { trimempty = true })
+  if args[1] == 'claude' then
+    table.remove(args, 1)
+  end
+  local start = { 'herdr', 'agent', 'start', herdr.agent_name, '--kind', 'claude', '--pane', pane_id, '--timeout', '30000' }
+  if #args > 0 then
+    table.insert(start, '--')
+    vim.list_extend(start, args)
+  end
+  -- 新規ペインはシェルのプロンプトが出る前に入力すると消える(agent startでも再現)ため、
+  -- プロンプト記号(`$ `等)が画面に出るまで待ってから起動する。待機失敗(タイムアウト)でも起動は試みる
+  local wait = { 'herdr', 'pane', 'wait-output', pane_id, '--regex', '[$#%>] ', '--timeout', '20000' }
+  local function quote(parts)
+    return table.concat(vim.tbl_map(vim.fn.shellescape, parts), ' ')
+  end
+  return { 'sh', '-c', quote(wait) .. ' >/dev/null 2>&1; ' .. quote(start) }
+end
+
 -- ==========================================================
 -- 2. lazy.nvim (Plugin Management)
 -- ==========================================================
@@ -508,6 +662,25 @@ require('lazy').setup({
       { '<leader>;', function() require('dropbar.api').pick() end, desc = 'Dropbar: パンくずをジャンプ選択' },
     },
   },
+  {
+    'folke/which-key.nvim', -- キーマップ入力中の候補ポップアップ
+    event = 'VeryLazy',
+    dependencies = { 'nvim-tree/nvim-web-devicons' },
+    opts = {
+      delay = 300, -- <leader>等の押下からポップアップ表示までのms
+      spec = {
+        { '<leader>a', group = 'Claude' },
+        { '<leader>f', group = '検索' },
+        { '<leader>l', group = 'Laravel' },
+        { '<leader>s', group = '置換' },
+        { '<leader>t', group = 'ターミナル' },
+        { '<leader>x', group = '診断' },
+      },
+    },
+    keys = {
+      { '<leader>/', function() require('which-key').show({ global = false }) end, desc = 'which-key: バッファのキーマップ一覧' },
+    },
+  },
 
   -- --- 開発サポート ---
   {
@@ -531,8 +704,14 @@ require('lazy').setup({
 
       local ts_filetypes = { 'javascript', 'typescript', 'tsx', 'php', 'html', 'css', 'json', 'lua', 'vim', 'blade', 'markdown', 'markdown_inline' }
       require('nvim-treesitter').install(ts_filetypes)
+      -- FileType はパーサー名ではなくfiletype名で一致させる(tsx→typescriptreact, jsx→javascriptreact。
+      -- 言語名への対応は nvim-treesitter が登録済み)
+      local ts_start_filetypes = vim.tbl_filter(function(ft)
+        return ft ~= 'tsx'
+      end, ts_filetypes)
+      vim.list_extend(ts_start_filetypes, { 'typescriptreact', 'javascriptreact' })
       vim.api.nvim_create_autocmd('FileType', {
-        pattern = ts_filetypes,
+        pattern = ts_start_filetypes,
         callback = function()
           -- パーサー未取得(インストール未完了)時にエラーで落ちないようにする
           pcall(vim.treesitter.start)
@@ -656,18 +835,36 @@ require('lazy').setup({
     end,
   },
   {
+    -- Markdownの画像リンクにカーソルを乗せるとフロートで画像表示する
+    -- (Kitty graphics protocol対応端末が必要。herdr経由のGhosttyで動作。変換にImageMagick(magick)が必要)
+    'folke/snacks.nvim',
+    priority = 1000,
+    lazy = false,
+    opts = {
+      image = {
+        enabled = true,
+        doc = { enabled = true, inline = false, float = true },
+      },
+    },
+  },
+  {
     'coder/claudecode.nvim',
     dependencies = { 'folke/snacks.nvim' },
     opts = {
       terminal_cmd = 'claude --agent evolver',
+      -- herdr内ではClaudeをherdrの右ペインで動かす(上記herdr連携)。外では従来のnativeターミナル
       -- マウスドラッグでの範囲選択中、CursorMoved高頻度発火→selection_changedの
       -- WebSocket送信が詰まりread error(画面フリーズ)を誘発するため、selection
       -- tracking自体を無効化する。副作用: <leader>as(visual選択の自動送信)は使えなく
       -- なるため、選択範囲を送りたい場合は :ClaudeCodeSend を選択後に手動実行する
       track_selection = false,
       terminal = {
-        split_width_percentage = 65, -- 1以上は絶対列数として扱われる(snacks.win仕様)。ターミナル全体幅に追従させず固定
-        diff_split_width_percentage = 65, -- diff表示時も同じ固定幅を維持
+        provider = herdr.enabled and 'external' or nil,
+        provider_opts = { external_terminal_cmd = herdr.enabled and herdr.claude_terminal_cmd or nil },
+        -- プラグインは0〜1の比率のみ受け付ける(65等の絶対列数は警告で無視)。起動時の列数から65列相当を算出し、
+        -- 以降はwinfixwidthで幅を固定する
+        split_width_percentage = math.min(0.9, 65 / vim.o.columns),
+        diff_split_width_percentage = math.min(0.9, 65 / vim.o.columns), -- diff表示時も同じ幅を維持
         snacks_win_opts = {
           wo = { winfixwidth = true }, -- Snacksのsplitはon_resize時に幅再計算しないため、
           -- 他ウィンドウの縮小/拡大時にVimネイティブの比例リサイズ対象から外し幅を固定する
@@ -679,6 +876,37 @@ require('lazy').setup({
         keep_terminal_focus = true, -- diff展開後もClaudeCodeパネルへフォーカス・インサートモードを維持する
       },
     },
+    config = function(_, opts)
+      require('claudecode').setup(opts)
+
+      -- プラグイン標準のdiff表示先選定(find_main_editor_window)は自前のPRパネル(ft=ghpr)を
+      -- 除外対象に持たず、list_wins順で最初に当たるそれへdiffを開いてしまう。
+      -- 中央のファイル表示パネル(is_file_winマーカー)を優先し、ghprは候補から外す。
+      -- diff_inline.luaはdiff._find_main_editor_windowをモジュール経由で呼ぶため差し替えが効く
+      local diff = require('claudecode.diff')
+      local orig_find_main_editor_window = diff._find_main_editor_window
+      -- 複数ファイルのdiffが同時に開く場合、2件目以降は既存diffウィンドウを表示先に選ぶ
+      -- (init側のOpenedハンドラが縦積みに移動する)。元ファイルパネルは1件目で閉じ済みのため、
+      -- 標準の選定に任せると別カラムが増えてレイアウトが崩れる
+      _G.__claudecode_open_diffs = _G.__claudecode_open_diffs or {}
+      diff._find_main_editor_window = function()
+        for _, win in pairs(_G.__claudecode_open_diffs) do
+          if vim.api.nvim_win_is_valid(win) then
+            return win
+          end
+        end
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+          if vim.w[win].is_file_win and not vim.wo[win].diff then
+            return win
+          end
+        end
+        local win = orig_find_main_editor_window()
+        if win and vim.bo[vim.api.nvim_win_get_buf(win)].filetype == 'ghpr' then
+          return nil
+        end
+        return win
+      end
+    end,
     init = function()
       -- 以下、diff表示(ClaudeCodeDiffOpened/Closed)時のwincmd均等化によって
       -- neo-tree幅・WSLターミナル・ファイルパネルのレイアウトが崩れるのを防ぐ処理。
@@ -748,6 +976,29 @@ require('lazy').setup({
           if not vim.api.nvim_win_is_valid(target_win) or not vim.api.nvim_win_is_valid(diff_win) then
             return
           end
+          -- 2件目以降: 表示先が既存diffウィンドウ。閉じるとbufhidden=wipeで先行diffが
+          -- rejectされるため閉じず、同じカラム内へ縦積みに移動する
+          local open_diffs = _G.__claudecode_open_diffs
+          for _, win in pairs(open_diffs) do
+            if win == target_win then
+              pcall(vim.fn.win_splitmove, diff_win, target_win, { vertical = false })
+              open_diffs[data.tab_name] = diff_win
+              -- 縦積みした全diffの高さを均等化(合計高さは維持)
+              local wins = {}
+              local total = 0
+              for _, w in pairs(open_diffs) do
+                if vim.api.nvim_win_is_valid(w) then
+                  table.insert(wins, w)
+                  total = total + vim.api.nvim_win_get_height(w)
+                end
+              end
+              for _, w in ipairs(wins) do
+                pcall(vim.api.nvim_win_set_height, w, math.floor(total / #wins))
+              end
+              return
+            end
+          end
+          open_diffs[data.tab_name] = diff_win
           hidden_diff_file_path = data.file_path
           local neotree_win = nil
           for _, win in ipairs(vim.api.nvim_list_wins()) do
@@ -764,7 +1015,13 @@ require('lazy').setup({
       })
       vim.api.nvim_create_autocmd('User', {
         pattern = 'ClaudeCodeDiffClosed',
-        callback = function()
+        callback = function(args)
+          local data = args.data or {}
+          _G.__claudecode_open_diffs[data.tab_name] = nil
+          -- 他のdiffが残っている間は元ファイル再表示しない(最後のdiff終了時に復元)
+          if next(_G.__claudecode_open_diffs) ~= nil then
+            return
+          end
           local file_path = hidden_diff_file_path
           hidden_diff_file_path = nil
           if not file_path or file_path == '' then
@@ -830,6 +1087,9 @@ require('lazy').setup({
       vim.api.nvim_create_autocmd('User', {
         pattern = 'ClaudeCodeDiffClosed',
         callback = function()
+          if next(_G.__claudecode_open_diffs) ~= nil then
+            return -- 他のdiffが残っている間はターミナルを復元しない
+          end
           vim.schedule(function()
             if not wsl_term_buf or not vim.api.nvim_buf_is_valid(wsl_term_buf) then
               return
@@ -858,6 +1118,9 @@ require('lazy').setup({
       vim.api.nvim_create_autocmd('User', {
         pattern = 'ClaudeCodeDiffClosed',
         callback = function()
+          if next(_G.__claudecode_open_diffs) ~= nil then
+            return -- 他のdiffが残っている間は幅を戻さない
+          end
           local width = neotree_width_before_diff
           neotree_width_before_diff = nil
           if not width then
@@ -971,6 +1234,7 @@ require('lazy').setup({
       close_if_last_window = true,
       filesystem = {
         hijack_netrw_behavior = 'disabled', -- ディレクトリ引数起動時のneo-tree自動オープンを止める(デフォルト非表示)
+        use_libuv_file_watcher = true, -- ファイル追加/削除/変更を監視して自動更新(Shift+R不要)。Claudeが作ったファイルも反映される
         filtered_items = {
           visible = true, -- 隠しファイルも表示 (旧NERDTreeShowHidden相当)
         },
@@ -1049,6 +1313,8 @@ require('lazy').setup({
 
       -- git_statusパネルの右クリックメニュー(Show Diff)から呼ぶ。HEADとワーキングツリーをfloatで比較表示する
       _G.__git_status_show_diff = function(path)
+        -- show-toplevel は実体パスを返すため、symlink経由のパスは先に実体へ解決する
+        path = vim.uv.fs_realpath(path) or path
         -- HEAD時点の内容(左)とワーキングツリーの内容(右)をfloatの左右splitで
         -- 比較表示する。`git show HEAD:relpath`はgitルートからの相対パスが必要なため
         -- 変換する。新規/追跡外ファイル等HEADに存在しない場合は左を空として扱う。
@@ -1402,8 +1668,18 @@ require('lazy').setup({
           local file_name = vim.fn.expand('%')
           local has_file = file_name ~= '' and vim.fn.isdirectory(file_name) == 0
 
+          if not has_file and vim.fn.argc() == 0 then
+            -- ファイル未指定時: 前回開いていたファイルを開く
+            local last = _G.__last_opened_file()
+            if last then
+              vim.cmd('edit ' .. vim.fn.fnameescape(last))
+              pcall(vim.cmd, 'silent! normal! g`"')
+              has_file = true
+            end
+          end
+
           if not has_file then
-            -- ファイル未指定時: カレントディレクトリの先頭ファイル(隠しファイル除く・名前順)を自動で開く
+            -- 前回ファイルも無い時: カレントディレクトリの先頭ファイル(隠しファイル除く・名前順)を自動で開く
             local entries = vim.fn.readdir(vim.fn.getcwd())
             table.sort(entries)
             for _, name in ipairs(entries) do

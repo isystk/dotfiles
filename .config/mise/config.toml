@@ -18,6 +18,8 @@ php = "8.4.25"
 #rust = ['1.92.0']
 # Neovim (nvim-treesitter) のパーサービルドに必要
 "npm:tree-sitter-cli" = "latest"
+herdr = "latest"
+rust = "stable"
 
 [hooks]
 # Gemini 等の API 通信スクリプトに必要 (mise i 実行後に mise 管理下の Python へ導入)

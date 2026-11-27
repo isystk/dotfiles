@@ -4,7 +4,6 @@
 
 # --- 1. Language & Environment ---
 export LANG=ja_JP.UTF-8
-export TERM=xterm-256color
 
 # enhancd config
 export ENHANCD_FILTER=fzy
@@ -17,6 +16,13 @@ export PATH="$HOME/.local/bin:$PATH"
 # 共通ユーティリティスクリプトを読み込む
 source "$HOME/dotfiles/scripts/utils.sh"
 
+# EDITOR/VISUALに"vi"を含む値(nvimパス等)が継承されていると
+# zsh起動時に自動でviinsキーマップになりCtrl+A等のemacsバインドが効かなくなるため、
+# 明示的にemacsキーマップを指定する。
+# プラグイン(history-search-multi-wordの^R等)は読込時に現在のキーマップへ登録されるため、
+# Zinit読込より前に実行する
+bindkey -e
+
 # --- 2. Zinit (Plugin Manager) ---
 if [[ ! -f $HOME/.local/share/zinit/zinit.git/zinit.zsh ]]; then
     print -P "%F{33} Installing Zinit..."
@@ -25,11 +31,11 @@ if [[ ! -f $HOME/.local/share/zinit/zinit.git/zinit.zsh ]]; then
 fi
 
 source "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
-autoload -Uz _zinit
-(( ${+_comps} )) && _comps[zinit]=_zinit
-
 # 標準的な補完（タブキーなど）を有効にする
 autoload -Uz compinit && compinit -C
+
+autoload -Uz _zinit
+(( ${+_comps} )) && _comps[zinit]=_zinit
 
 # --- 3. Plugins ---
 
@@ -77,18 +83,14 @@ PROMPT_OK="%{${fg[green]}%}"
 PROMPT_ERR="%{${fg[yellow]}%}"
 RESET="%{${reset_color}%}"
 
-# プロンプトの構築（前回の終了時刻を表示）
-function precmd() {
-  local EXIT_STATUS="%(?.${PROMPT_OK}.${PROMPT_ERR})"
-  local TIME=$(date "+%H:%M:%S")
-  PROMPT="${EXIT_STATUS}${TIME} $ %B${RESET}"
-}
+# プロンプトの構築（終了ステータスで色分け、時刻は%*で描画時に展開）
+PROMPT="%(?.${PROMPT_OK}.${PROMPT_ERR})%* $ %B${RESET}"
 
 # 右プロンプト (Git状態)
-RPROMPT='%B%40<..<%1~ %b$(gitprompt)'
+RPROMPT='%B%40<..<%1~%<< %b$(gitprompt)'
 
 # WSL用のGit Prompt調整
-if [[ -f /proc/sys/fs/binfmt_misc/WSLInterop ]]; then
+if [[ -n "$IS_WSL" ]]; then
     ZSH_THEME_GIT_PROMPT_PREFIX="["
     ZSH_THEME_GIT_PROMPT_SUFFIX=" ]"
 fi
@@ -99,7 +101,12 @@ export LS_COLORS='di=34:ln=35:so=32:pi=33:ex=31:bd=34;46:cd=34;43'
 zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
 
 # --- 7. Aliases & Hash ---
-alias ll='ls -alG'
+# -G は BSD(mac)では色付け、GNU lsでは「グループ非表示」になるためOS分岐
+if [[ -n "$IS_MAC" ]]; then
+    alias ll='ls -alG'
+else
+    alias ll='ls -al --color=auto'
+fi
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias history='history -t "%F %T"'
@@ -150,20 +157,18 @@ _run_completion() {
     local -a commands
     local line
     while IFS= read -r line; do
-        line=$(echo "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]{2,}/:/; s/\|[^:]*//')
         [[ "$line" == *:* ]] && commands+=("$line")
-    done < <("$script" help 2>/dev/null)
+    done < <("$script" help 2>/dev/null | sed -E 's/^[[:space:]]+//; s/[[:space:]]{2,}/:/; s/\|[^:]*//')
     _describe -t commands 'run commands' commands -Q
 }
 zinit wait'0' lucid for \
     atinit"compdef _run_completion run; setopt complete_aliases" \
     zdharma-continuum/null
 
+# herdr 補完 (未インストール環境ではスキップ)
+if type 'herdr' > /dev/null 2>&1; then
+    eval "$(herdr completion zsh)"
+fi
+
 # ログイン時にファイルリスト同期状況を確認する（WSL環境のみ）
-[[ -n "$IS_WSL" ]] && run backup check-sync
-
-# EDITOR/VISUALに"vi"を含む値(nvimパス等)がセットされていると
-# zsh起動時に自動でviinsキーマップになりCtrl+A等のemacsバインドが効かなくなるため、
-# 明示的にemacsキーマップを指定する
-bindkey -e
-
+[[ -o login && -n "$IS_WSL" ]] && run backup check-sync

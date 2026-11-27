@@ -1,0 +1,2 @@
+toggle_placement = "tab"        # split | overlay | zoomed | tab
+navigator_position = "bottom"   # right | bottom | left | top

@@ -79,6 +79,40 @@ public class ImeHelper {
         SendMessage(imeWnd, WM_IME_CONTROL, (IntPtr)IMC_SETOPENSTATUS, IntPtr.Zero);
     }
 }
+
+// 複数のNeovim(WezTerm/Windows Terminal/複数ペイン)が同時に接続できるよう、
+// 接続ごとにスレッドを立てて処理する。単一インスタンスだと先に接続した
+// (古い・放置された)クライアントが専有し、後続のNeovimは接続できずIMEが切り替わらない。
+public class ImePipeServer {
+    public static void Run(string name) {
+        while (true) {
+            System.IO.Pipes.NamedPipeServerStream s = null;
+            try {
+                s = new System.IO.Pipes.NamedPipeServerStream(
+                    name,
+                    System.IO.Pipes.PipeDirection.In,
+                    System.IO.Pipes.NamedPipeServerStream.MaxAllowedServerInstances);
+                s.WaitForConnection();
+                System.IO.Pipes.NamedPipeServerStream conn = s;
+                System.Threading.Thread t = new System.Threading.Thread(delegate() { Handle(conn); });
+                t.IsBackground = true;
+                t.Start();
+            } catch {
+                if (s != null) { s.Dispose(); }
+                System.Threading.Thread.Sleep(100);
+            }
+        }
+    }
+
+    private static void Handle(System.IO.Pipes.NamedPipeServerStream s) {
+        try {
+            using (s)
+            using (System.IO.StreamReader r = new System.IO.StreamReader(s)) {
+                while (r.ReadLine() != null) { ImeHelper.SetImeOff(); }
+            }
+        } catch { }
+    }
+}
 "@
 
 # WSL(Neovim)側からのNamed Pipe接続を待ち受け、1行=1通知としてIMEをオフにする。
@@ -87,24 +121,4 @@ public class ImeHelper {
 # 届く前提でストリームが切れるまで読み続ける(切断されたら次の接続を待つ)。
 $PipeName = "nvim-ime-off"
 
-while ($true) {
-    $server = $null
-    try {
-        $server = New-Object System.IO.Pipes.NamedPipeServerStream(
-            $PipeName,
-            [System.IO.Pipes.PipeDirection]::In
-        )
-        $server.WaitForConnection()
-        $reader = New-Object System.IO.StreamReader($server)
-        while ($server.IsConnected) {
-            $line = $reader.ReadLine()
-            if ($null -eq $line) { break }
-            [ImeHelper]::SetImeOff()
-        }
-    } catch {
-        # クライアント切断タイミング等の一時的な例外は無視し、次の接続待ちへ
-        Start-Sleep -Milliseconds 100
-    } finally {
-        if ($server) { $server.Dispose() }
-    }
-}
+[ImePipeServer]::Run($PipeName)

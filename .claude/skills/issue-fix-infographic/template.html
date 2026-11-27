@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<!-- render.sh が日本語フォントと fonts.css をこのフォルダに生成する -->
+<link rel="stylesheet" href="fonts.css">
+<style>
+  :root { --blue:#1f5fbf; --navy:#16325c; --bg:#f2f6fc; --red:#d64545; --green:#1f9d63; --gray:#5b6678; }
+  * { box-sizing:border-box; margin:0; }
+  body { width:1280px; background:var(--bg); font-family:"NotoJP","Noto Sans CJK JP","Noto Sans JP",sans-serif; color:#1d2433; line-height:1.5; padding:32px; }
+  header { background:var(--navy); color:#fff; border-radius:16px; padding:26px 32px; }
+  header .tag { font-size:15px; letter-spacing:.08em; opacity:.8; }
+  header h1 { font-size:34px; margin-top:6px; line-height:1.35; }
+  h2 { font-size:22px; color:var(--navy); margin:30px 0 14px; padding-left:12px; border-left:6px solid var(--blue); }
+  .row { display:grid; grid-template-columns:1fr 56px 1fr; align-items:stretch; margin-bottom:12px; }
+  .box { border-radius:12px; padding:14px 18px; font-size:16px; line-height:1.55; }
+  .box b { display:block; font-size:17px; margin-bottom:2px; }
+  .need { background:#fff; border:2px solid #f0c5c5; }
+  .need b { color:var(--red); }
+  .fix { background:#fff; border:2px solid #bfe3d0; }
+  .fix b { color:var(--green); }
+  .arrow { display:flex; align-items:center; justify-content:center; font-size:30px; color:var(--blue); font-weight:bold; }
+  .shots { display:grid; grid-template-columns:auto auto; gap:24px; align-items:start; justify-content:center; }
+  .shot-group { background:#fff; border-radius:14px; padding:16px 18px 18px; }
+  .shot-group h3 { font-size:17px; color:var(--navy); margin-bottom:10px; text-align:center; }
+  .pair { display:flex; gap:14px; align-items:flex-start; justify-content:center; }
+  figure { text-align:center; }
+  figcaption { font-size:14px; font-weight:bold; margin-bottom:6px; }
+  .before figcaption { color:var(--red); }
+  .after figcaption { color:var(--green); }
+  figure img { display:block; border:1px solid #cfd6e3; border-radius:6px; }
+  /* 縦長の画像は高さ、横長の画像は幅をそろえる */
+  .portrait img { height:340px; width:auto; }
+  .landscape img { width:290px; height:auto; }
+  .landscape .pair { flex-direction:column; align-items:center; }
+  .summary { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:#fff; border-radius:12px; padding:16px 20px; font-size:16px; line-height:1.7; }
+  .card h3 { font-size:17px; margin-bottom:6px; }
+  .card.ok h3 { color:var(--green); }
+  .card.todo h3 { color:#b8741a; }
+  .card ul { padding-left:1.2em; }
+  footer { margin-top:18px; font-size:13px; color:var(--gray); text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <!-- 案件名・機能名などの小見出し。不要ならこの行ごと削除 -->
+  <div class="tag">{{LABEL}}</div>
+  <h1>{{TITLE}}</h1>
+</header>
+
+<h2>要件・課題と対応案</h2>
+<!-- 要件・課題と対応案を1対1行にする。要件・課題は事実、未確認のものは「推測」「未確認」と書く。不要な行は削除、足りなければ複製 -->
+<div class="row">
+  <div class="box need"><b>{{NEED_1_TITLE}}</b>{{NEED_1_DETAIL}}</div>
+  <div class="arrow">→</div>
+  <div class="box fix"><b>{{FIX_1_TITLE}}</b>{{FIX_1_DETAIL}}</div>
+</div>
+<div class="row">
+  <div class="box need"><b>{{NEED_2_TITLE}}</b>{{NEED_2_DETAIL}}</div>
+  <div class="arrow">→</div>
+  <div class="box fix"><b>{{FIX_2_TITLE}}</b>{{FIX_2_DETAIL}}</div>
+</div>
+
+<!-- 修正前後のキャプチャがあるときだけ使う。無ければ、ここから SHOTS_END までを削除する -->
+<h2>修正前後の画面（{{ENV}}）</h2>
+<div class="shots">
+  <!-- 縦長の画面は class="shot-group portrait"、横長の画面は class="shot-group landscape"。画像はこのフォルダに置く -->
+  <div class="shot-group portrait">
+    <h3>{{SHOT_1_LABEL}}</h3>
+    <div class="pair">
+      <figure class="before"><figcaption>修正前</figcaption><img src="before_1.png" alt="修正前"></figure>
+      <figure class="after"><figcaption>修正後</figcaption><img src="after_1.png" alt="修正後"></figure>
+    </div>
+  </div>
+</div>
+<!-- SHOTS_END -->
+
+<h2>結論</h2>
+<div class="summary">
+  <div class="card ok">
+    <h3>確認できたこと（{{ENV}}）</h3>
+    <ul>
+      <li>{{OK_1}}</li>
+      <li>{{OK_2}}</li>
+    </ul>
+  </div>
+  <div class="card todo">
+    <h3>対象外・残課題</h3>
+    <ul>
+      <li>{{TODO_1}}</li>
+      <li>{{TODO_2}}</li>
+    </ul>
+  </div>
+</div>
+<footer>{{FOOTER}}</footer>
+</body>
+</html>

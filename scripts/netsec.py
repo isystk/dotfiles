@@ -1081,8 +1081,8 @@ def cmd_arp(args):
     gw_mac = (neigh.get(gw_ip) or {}).get("mac") if gw_ip else None
     prev_gw = baseline.get("gateway", {}).get("mac")
     if gw_ip and gw_mac:
-        gw_changed = bool(prev_gw and prev_gw != gw_mac)
-        if gw_changed:
+        changed = bool(prev_gw and prev_gw != gw_mac)
+        if changed:
             issues.append(
                 ("critical", "ゲートウェイの MAC が変化: %s -> %s（機器入れ替えでなければ ARP スプーフィング）。"
                  "ベースラインは更新していない。正当な機器入れ替えならベースラインを削除して再取得"
@@ -1090,8 +1090,8 @@ def cmd_arp(args):
             )
         if is_local_mac(gw_mac):
             issues.append(("high", "ゲートウェイの MAC がローカル管理アドレス: %s" % gw_mac))
-        # MAC 変化時はベースラインを上書き保存しない（保存すると次回以降 異常を検知できなくなる）
-        if not gw_changed:
+        # 変化を検知した場合はベースラインを据え置き、以降の実行でも異常を出し続ける
+        if not changed:
             baseline.setdefault("gateway", {})
             baseline["gateway"].update({"ip": gw_ip, "mac": gw_mac, "updated": now_iso()})
             if not args.no_save:
@@ -1879,11 +1879,11 @@ def cmd_capture(args):
 
     crit = []
     if args.ip:
-        # PowerShell スクリプト / pktmon へ渡す前に形式を検証する
+        # PowerShell スクリプト / pktmon フィルタへの文字列連結前に IP を検証する
         try:
             ipaddress.ip_address(args.ip)
         except ValueError:
-            print("IP アドレスの形式が不正: %s" % args.ip)
+            print("--ip の値が不正: %s" % args.ip)
             return 1
         crit += ["-i", args.ip]
     if args.port:

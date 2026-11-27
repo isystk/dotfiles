@@ -11,7 +11,7 @@ guiApplications=true
 networkingMode=mirrored
 
 [experimental]
-# ネットワーク接続の互換性を向上させるDNSトンネリングを有効化
-dnsTunneling=true
-# アイドル時に未使用のメモリをホストに返却
-autoMemoryReclaim=gradual
+# ネットワーク接続の互換性を向上させるDNSトンネリングを無効化
+dnsTunneling=false
+# アイドル時に未使用メモリのキャッシュをホストに返却
+autoMemoryReclaim=dropCache

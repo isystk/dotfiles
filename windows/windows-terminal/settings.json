@@ -1,10 +1,10 @@
 {
     "$help": "https://aka.ms/terminal-documentation",
     "$schema": "https://aka.ms/terminal-profiles-schema",
-    "actions":
+    "actions": 
     [
         {
-            "command":
+            "command": 
             {
                 "action": "sendInput",
                 "input": "\u001b\r"
@@ -27,7 +27,7 @@
     "copyFormatting": "none",
     "copyOnSelect": false,
     "defaultProfile": "{2c4de342-38b7-51cf-b940-2309a097f518}",
-    "keybindings":
+    "keybindings": 
     [
         {
             "id": "Terminal.DuplicatePaneAuto",
@@ -54,16 +54,22 @@
             "keys": "ctrl+shift+f"
         }
     ],
-    "newTabMenu":
+    "newTabMenu": 
     [
         {
             "type": "remainingProfiles"
         }
     ],
-    "profiles":
+    "profiles": 
     {
-        "defaults": {},
-        "list":
+        "defaults": 
+        {
+            "backgroundImage": "ms-appdata:///local/background.png",
+            "backgroundImageAlignment": "center",
+            "backgroundImageOpacity": 0.25,
+            "backgroundImageStretchMode": "uniformToFill"
+        },
+        "list": 
         [
             {
                 "commandline": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
@@ -75,7 +81,7 @@
                 "commandline": "%SystemRoot%\\System32\\cmd.exe",
                 "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
                 "hidden": false,
-                "name": "コマンド プロンプト"
+                "name": "\u30b3\u30de\u30f3\u30c9 \u30d7\u30ed\u30f3\u30d7\u30c8"
             },
             {
                 "guid": "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
@@ -84,7 +90,7 @@
                 "source": "Windows.Terminal.Azure"
             },
             {
-                "font":
+                "font": 
                 {
                     "face": "JetBrainsMono Nerd Font",
                     "size": 12
@@ -95,7 +101,7 @@
                 "source": "CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc"
             },
             {
-                "font":
+                "font": 
                 {
                     "face": "JetBrainsMono Nerd Font"
                 },
